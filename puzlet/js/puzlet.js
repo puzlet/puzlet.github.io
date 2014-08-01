@@ -5,7 +5,7 @@
 
   console.log("window.location", window.location);
 
-  $.getJSON("/compressive_sensing_introduction/test.json", function(data) {
+  $.getJSON("/cs-intro/test.json", function(data) {
     return console.log("test.json", data);
   });
 
