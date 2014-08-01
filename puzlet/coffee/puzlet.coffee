@@ -69,9 +69,20 @@ getBlab = ->
 		href: "/#{blab}/main.css"
 	$(document.head).append css
 	
+	# ZZZ Hard coded
+	#d = $ "<script>",
+	#	src: "http://puzlet.com/puzlet/php/source.php?pageId=b00bj&file=d3.min.js"  # Another CDN?
+	#$(document.head).append d
+	
 	$.get("/#{blab}/main.html", (data) ->
 		$("#codeout_html").append Wiky.toHtml(data)
 		new MathJaxProcessor
+		
+		js = $ "<script>",
+			src: "/#{blab}/main.js"
+		console.log "js", js
+		$(document.head).append js
+		
 	)
 	
 htmlNode = ->
@@ -86,7 +97,12 @@ htmlNode = ->
 	"""
 	$("#app_container").append html
 
-htmlNode()
-getBlab()
+$(document).ready ->
+	#new ArrayMath
+	Array.prototype.dot = (y) -> numeric.dot(+this, y)  # ZZZ temp
+	#a = [1..100]
+	#console.log "a", a, a.dot
+	htmlNode()
+	getBlab()
 
 
