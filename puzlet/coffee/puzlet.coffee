@@ -82,7 +82,6 @@ getBlab = ->
 			src: "/#{blab}/main.js"
 		console.log "js", js
 		$(document.head).append js
-		
 	)
 	
 htmlNode = ->
@@ -96,6 +95,11 @@ htmlNode = ->
 	</div>
 	"""
 	$("#app_container").append html
+	
+gistTest = ->
+	$.get("http://api.github.com/users/puzlet/gists", (data) ->
+		console.log "gist", data
+	)
 
 $(document).ready ->
 	#new ArrayMath
@@ -104,5 +108,6 @@ $(document).ready ->
 	#console.log "a", a, a.dot
 	htmlNode()
 	getBlab()
+	gistTest()
 
 
