@@ -131,6 +131,7 @@ gistTest = ->
 	})
 
 $(document).ready ->
+	$("#ribbon").fadeTo 1000, 0.2
 	#new ArrayMath
 	Array.prototype.dot = (y) -> numeric.dot(+this, y)  # ZZZ temp
 	#a = [1..100]

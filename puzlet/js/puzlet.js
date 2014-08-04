@@ -819,6 +819,7 @@
   };
 
   $(document).ready(function() {
+    $("#ribbon").fadeTo(1000, 0.2);
     Array.prototype.dot = function(y) {
       return numeric.dot(+this, y);
     };
