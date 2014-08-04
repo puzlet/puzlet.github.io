@@ -46,7 +46,7 @@
 	margin-left: 3px;
 }
 
-#body_outer {
+#body_outer {  /* No longer needed */
   position: relative;
   width: auto;
   margin: 0 auto;
@@ -54,8 +54,18 @@
 
 #app_container {
 	position: relative;
+	width: auto;
+  margin: 0 auto;
 	padding: 10px;
 	background: white;
+}
+
+#blab_container {
+  position: relative;
+  width: auto;
+  margin: 0 auto;
+  padding: 10px;
+  background: white;
 }
 
 #footer_container {

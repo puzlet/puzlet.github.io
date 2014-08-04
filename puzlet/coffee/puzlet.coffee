@@ -55,38 +55,61 @@ class MathJaxProcessor
 		queue configElements
 
 
-getBlab = ->
+getBlabId = ->
 	query = location.search.slice(1)
 	return null unless query
 	h = query.split "&"
 	p = h?[0].split "="
 	blab = if p.length and p[0] is "blab" then p[1] else null
-	return null unless blab
-	
+
+
+loadMainCss = (blab) ->
 	css = $ "<link>",
 		rel: "stylesheet"
 		type: "text/css"
 		href: "/#{blab}/main.css"
 	$(document.head).append css
 	
-	# ZZZ Hard coded
-	#d = $ "<script>",
-	#	src: "http://puzlet.com/puzlet/php/source.php?pageId=b00bj&file=d3.min.js"  # Another CDN?
-	#$(document.head).append d
-	
-	$.get("/#{blab}/main.html", (data) ->
+	# Optional:
+	# css.load ->
+	# css.error ->
+
+
+loadMainHtml = (blab, callback) ->
+	$.get("/#{blab}/main.html", (data) -> callback data)
+
+
+loadExtrasJs = (blab) ->
+	js = $ "<script>", src: "/#{blab}/extras.js"
+	$(document.head).append js
+
+
+loadMainJs = (blab) ->
+	js = $ "<script>", src: "/#{blab}/main.js"
+	$(document.head).append js
+
+
+# Not used yet.
+getFileDivs = (blab) ->
+	#test = $ "div[data-file]"
+	#console.log "test", test.attr "data-file"
+
+
+getBlab = ->
+	blab = getBlabId()
+	return null unless blab
+	loadMainCss blab
+	loadMainHtml blab, (data) ->
+		htmlNode()
 		$("#codeout_html").append Wiky.toHtml(data)
 		new MathJaxProcessor
-		
-		js = $ "<script>",
-			src: "/#{blab}/main.js"
-		console.log "js", js
-		$(document.head).append js
-	)
+		loadExtrasJs blab
+		loadMainJs blab  # Does not yet load resources
+		githubForkRibbon blab
 	
 htmlNode = ->
 	html = """
-	<div id="code_nodes" data-module-id="b00cv">
+	<div id="code_nodes" data-module-id="">
 	<div class="code_node_container" id="code_node_container_html" data-node-id="html" data-filename="main.html">
 		<div class="code_node_output_container" id="output_html">
 			<div class="code_node_html_output" id="codeout_html"></div>
@@ -94,58 +117,20 @@ htmlNode = ->
 	</div>
 	</div>
 	"""
-	$("#app_container").append html
-	
-gistTest = ->
-	# https://api.github.com/users/'+username
-	# /users/:username/gists
-	
-	#url = "https://api.github.com/users/mvclark/gists"
-	url = "https://api.github.com/gists/d766b1f32ab6c2258da2"
-	
-	$.get(url, (data) ->
-		console.log "gist", data
-	)
-	
-	url2 = "https://gist.githubusercontent.com/mvclark/2c1f80c07c67466170ee/raw/c4c27a1698de5e6b812372abfdea2d7e28e24169/test.js"
-	$.get(url2, (data) ->
-		console.log "gist data", data
-	)
-	
-	d = {
-		description: "the description for this gist"
-		public: true
-		files: {
-			"file1.txt": {
-				content: "String file contents"
-			}
-		}
-	}
-	return # ZZZZZZZ
-	$.ajax({
-		type: "POST"
-		url: "https://api.github.com/gists"
-		data: JSON.stringify(d)
-		success: (data) -> console.log "create gist", data
-		dataType: "json"
-	})
+	$("#blab_container").append html
 
-ribbon = ->
+
+githubForkRibbon = (blab) ->
 	html = """
-	<a href="https://github.com/puzlet/cs-intro" id="ribbon"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://camo.githubusercontent.com/365986a132ccd6a44c23a9169022c0b5c890c387/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f7265645f6161303030302e706e67" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_red_aa0000.png"></a>
+	<a href="https://github.com/puzlet/#{blab}" id="ribbon" style="opacity:0.2"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://camo.githubusercontent.com/365986a132ccd6a44c23a9169022c0b5c890c387/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f7265645f6161303030302e706e67" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_red_aa0000.png"></a>
 	"""
-	$("#app_container").append html
-	$("#ribbon").fadeTo 4000, 0.2
+	$("#blab_container").append(html)
+	setTimeout(->
+		$("#ribbon").fadeTo(400, 1).fadeTo(400, 0.2)
+	, 2000)
+
 
 $(document).ready ->
-	#new ArrayMath
 	Array.prototype.dot = (y) -> numeric.dot(+this, y)  # ZZZ temp
-	#a = [1..100]
-	#console.log "a", a, a.dot
-	htmlNode()
 	getBlab()
-	gistTest()
-	
-	ribbon()
-
 
