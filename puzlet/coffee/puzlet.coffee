@@ -287,7 +287,7 @@ getFileDivs = (blab) ->
 getBlab = ->
 	blab = getBlabId()
 	return null unless blab
-	loadMainCss blab
+#	loadMainCss blab
 	loadMainHtml blab, (data) ->
 		#htmlNode()
 #		$("#codeout_html").append Wiky.toHtml(data)
@@ -321,14 +321,21 @@ githubForkRibbon = (blab) ->
 
 init0 = ->
 	blab = getBlabId()
+	return unless blab
+	Array.prototype.dot = (y) -> numeric.dot(+this, y)  # ZZZ temp
+	
 	htmlNode()
 	loadMainCss blab
 	console.log "time0", Date.now()
-	$.get("/#{blab}/main.html", (data) -> 
+	loadMainHtml blab, (data) ->
+	#$.get("/#{blab}/main.html", (data) -> 
 		$("#codeout_html").append Wiky.toHtml(data)
 		new MathJaxProcessor
-		
-	)
+		init ->
+		#	loadExtrasJs blab
+			loadMainJs blab  # Does not yet load resources
+			githubForkRibbon blab
+	
 
 init0()
 
@@ -352,7 +359,7 @@ init = (callback) ->
 
 $(document).ready ->
 	console.log "time_doc_ready", Date.now()
-	Array.prototype.dot = (y) -> numeric.dot(+this, y)  # ZZZ temp
-	init(-> getBlab())
+	#Array.prototype.dot = (y) -> numeric.dot(+this, y)  # ZZZ temp
+	#init(-> getBlab())
 	#getBlab()
 

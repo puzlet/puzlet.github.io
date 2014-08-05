@@ -1048,7 +1048,6 @@
     if (!blab) {
       return null;
     }
-    loadMainCss(blab);
     return loadMainHtml(blab, function(data) {
       loadExtrasJs(blab);
       loadMainJs(blab);
@@ -1074,12 +1073,22 @@
   init0 = function() {
     var blab;
     blab = getBlabId();
+    if (!blab) {
+      return;
+    }
+    Array.prototype.dot = function(y) {
+      return numeric.dot(+this, y);
+    };
     htmlNode();
     loadMainCss(blab);
     console.log("time0", Date.now());
-    return $.get("/" + blab + "/main.html", function(data) {
+    return loadMainHtml(blab, function(data) {
       $("#codeout_html").append(Wiky.toHtml(data));
-      return new MathJaxProcessor;
+      new MathJaxProcessor;
+      return init(function() {
+        loadMainJs(blab);
+        return githubForkRibbon(blab);
+      });
     });
   };
 
@@ -1100,13 +1109,7 @@
   };
 
   $(document).ready(function() {
-    console.log("time_doc_ready", Date.now());
-    Array.prototype.dot = function(y) {
-      return numeric.dot(+this, y);
-    };
-    return init(function() {
-      return getBlab();
-    });
+    return console.log("time_doc_ready", Date.now());
   });
 
 }).call(this);
