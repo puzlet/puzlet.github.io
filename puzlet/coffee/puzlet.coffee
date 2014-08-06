@@ -12,7 +12,8 @@ class MathJaxProcessor
 	
 		#return # DEBUG
 		
-		@outputId = "codeout_html"
+		@outputId = "blab_container"
+#		@outputId = "codeout_html"
 		
 		#MathJaxProcessor?.mode = "SVG"
 		
@@ -146,102 +147,6 @@ class CoffeeEvaluator
 window.CoffeeEvaluator = CoffeeEvaluator
 
 
-class Resources
-	
-	resourcesClass: "lab_resources"
-	
-	# ZZZ how do we know when all resources loaded?
-	constructor: (@spec, @callback) ->
-		#super @spec
-		@head = document.getElementsByTagName('head')[0]  # Doesn't work with jQuery.
-		@evaluator = new CoffeeEvaluator
-		
-	process: ->
-		
-		@removeResources()
-		
-		@resourcesToLoad = 0
-		
-		resources = @eval()
-		
-		# Return if no resources.
-		unless resources
-			@callback()
-			return
-		
-		moduleIdRegEx = /^[a-z0-9]{5}?(\.[0-9]+|)$/
-		# ZZZ also need better match for js/css URL
-		
-		@wait = false
-		for r in resources
-			# ZZZ method for this?
-			if not r or typeof r isnt "string"
-				resourceHtml = null  # ignore these lines
-			else if r.match moduleIdRegEx
-				t = new Date().getTime()
-				prefix = "/#{r}/"
-				postfix = "&t=#{t}"
-				@addCoffee(prefix + "main.coffee" + postfix)
-				@addCss(prefix + "main.css" + postfix)
-				l = "/m/#{r}"
-			else if r.indexOf(".js") isnt -1
-				@addScript r
-			else if r.indexOf(".css") isnt -1
-				@addCss r
-			else
-				# Invalid resource.
-			
-		@callback() if not @wait and @resourcesToLoad is 0
-		
-	removeResources: ->
-		resources = $ ".#{@resourcesClass}"
-		resources.remove() if resources.length
-	
-	addCoffee: (url) ->
-		@resourcesToLoad++
-		$.ajax(
-			url: url
-			type: "get"
-		).done (data) =>
-			CoffeeEvaluator.eval data
-			@resourceLoaded()
-	
-	# Used only for custom JavaScript - not used now for compiled CoffeeScript (addCoffee used instead).
-	addScript: (url) ->
-		@wait = true
-		@resourcesToLoad++
-		$js = $ "<script>"
-			class: @resourcesClass
-			type: "text/javascript"
-			src: url
-			
-		js = $js[0]
-		js.onload = (=> @resourceLoaded())
-		@head.appendChild js
-		
-	addCss: (url) ->
-		# ZZZ note DUP with js - simplify?  superclass?
-		@wait = true
-		@resourcesToLoad++
-		$css = $ "<link>"
-			class: @resourcesClass
-			rel: "stylesheet"
-			type: "text/css"
-			href: url
-			
-		css = $css[0]
-		css.onload = (=> @resourceLoaded())
-		@head.appendChild css
-		
-	resourceLoaded: ->
-		@resourcesToLoad--
-		@callback() if @resourcesToLoad is 0
-	
-	eval: ->
-		return null unless @code()?.trim().length > 0
-		recompile = true
-		stringify = false
-		result = @evaluator.process @code(), recompile, stringify
 
 
 getBlabId = ->
@@ -256,7 +161,8 @@ loadMainCss = (blab) ->
 	css = $ "<link>",
 		rel: "stylesheet"
 		type: "text/css"
-		href: "/#{blab}/main.css"
+		href: "main.css"
+		#href: "/#{blab}/main.css"
 	$(document.head).append css
 	
 	# Optional:
@@ -274,7 +180,19 @@ loadExtrasJs = (blab) ->
 
 
 loadMainJs = (blab) ->
-	js = $ "<script>", src: "/#{blab}/main.js"
+	
+	head = document.getElementsByTagName('head')[0]  # Doesn't work with jQuery.
+	$js = $ "<script>"
+		type: "text/javascript"
+		src: "main.js"
+		
+	js = $js[0]
+	#js.onload = (=> @resourceLoaded())
+	head.appendChild js
+	return
+	
+	js = $ "<script>", src: "main.js"
+#	js = $ "<script>", src: "/#{blab}/main.js"
 	$(document.head).append js
 
 
@@ -335,9 +253,6 @@ init0 = ->
 		#	loadExtrasJs blab
 			loadMainJs blab  # Does not yet load resources
 			githubForkRibbon blab
-	
-
-init0()
 
 init = (callback) ->
 	
@@ -347,7 +262,7 @@ init = (callback) ->
 	js = $ "<script>"
 		type: "text/javascript"
 		src: "http://puzlet.com/puzlet/php/source.php?pageId=b00bj&file=d3.min.js"
-
+		
 	(js[0]).onload = ->
 		console.log "js loaded"
 		callback()
@@ -357,8 +272,207 @@ init = (callback) ->
 	#)
 
 
-$(document).ready ->
-	console.log "time_doc_ready", Date.now()
+initNew = ->
+	blab = "cs-intro" # ZZZ Temp
+	return unless blab
+	Array.prototype.dot = (y) -> numeric.dot(+this, y)  # ZZZ temp
+	
+	htmlNode()
+	loadMainCss blab
+	console.log "time0", Date.now()
+	#loadMainHtml blab, (data) ->
+	#$.get("/#{blab}/main.html", (data) -> 
+	#	$("#codeout_html").append Wiky.toHtml(data)
+	new MathJaxProcessor
+	init ->
+		#loadExtrasJs blab
+		loadMainJs blab  # Does not yet load resources
+		githubForkRibbon blab	
+
+
+#init0()
+#initNew()
+
+OLDloadJS = (url) ->
+	
+	head = document.getElementsByTagName('head')[0]  # Doesn't work with jQuery.
+	$js = $ "<script>"
+		type: "text/javascript"
+		src: "main.js"
+		
+	js = $js[0]
+	#js.onload = (=> @resourceLoaded())
+	head.appendChild js
+	return
+	
+	js = $ "<script>", src: "main.js"
+#	js = $ "<script>", src: "/#{blab}/main.js"
+	$(document.head).append js
+	
+
+
+class Resources
+	
+	# This class does not use jQuery for loading because it can be used to dynamically load jQuery itself.
+	
+	constructor: (@spec) ->
+		@head = document.getElementsByTagName('head')[0]  # Doesn't work with jQuery.
+		@load()
+		
+	load: ->
+		
+		@resourcesToLoad = 0
+		
+		resources = @spec.resources
+		unless resources
+			@spec.loaded()
+			return
+		
+		@wait = false
+		for resource in resources
+			url = resource.url
+			if url.indexOf(".js") isnt -1
+				@addScript resource
+			else if url.indexOf(".css") isnt -1
+				@addCss resource
+			else
+				# Invalid resource.
+			
+		@spec.loaded() if not @wait and @resourcesToLoad is 0
+	
+	addScript: (resource) ->
+		# Return if "var" specified, and already exists.
+		if window[resource.var]
+			console.log "Already loaded", resource
+			return
+		url = resource.url
+		@wait = true
+		@resourcesToLoad++
+		js = document.createElement "script"
+		js.setAttribute "src", url
+		js.setAttribute "type", "text/javascript"
+		js.setAttribute "class", @spec.resourcesClass
+		js.onload = => @resourceLoaded resource
+		document.head.appendChild js
+		
+	addCss: (resource) ->
+		url = resource.url
+		@wait = true
+		@resourcesToLoad++
+		css = document.createElement "link"
+		css.setAttribute "href", url
+		css.setAttribute "rel", "stylesheet"
+		css.setAttribute "type", "text/css"
+		css.setAttribute "class", @spec.resourcesClass
+		css.onload = => @resourceLoaded resource
+		document.head.appendChild css
+		
+	resourceLoaded: (resource) ->
+		console.log "Loaded", resource
+		@resourcesToLoad--
+		@spec.loaded() if @resourcesToLoad is 0
+		
+	removeAll: (resourcesClass)->
+		resources = $ ".#{resourcesClass}"
+		resources.remove() if resources.length
+
+
+loadJS = (url, callback) ->
+	# This does not use jQuery because it is also used to load jQuery itself.
+	js = document.createElement "script"
+	js.setAttribute "src", url
+	js.setAttribute "type", "text/javascript"
+	js.onload = -> callback()
+	document.head.appendChild js
+
+loadJQuery = (callback) ->
+	# Returns if jQuery already loaded.
+	if jQuery?
+		callback()
+	else
+		loadJS "http://code.jquery.com/jquery-1.8.3.min.js", -> callback()
+
+init1 = ->
+	# (Get blab id)
+	
+	blab =  window.location.pathname.split("/")[1]  # ZZZ more robust way?
+	
+	load1 = (callback) ->
+		spec =
+			resources: [
+				{url: "http://code.jquery.com/jquery-1.8.3.min.js", var: "jQuery"}
+				{url: "/puzlet/css/coffeelab.css"}
+				{url: "/puzlet/js/wiky.js", var: "Wiky"}
+				{url: "/#{blab}/main.css"}
+			]
+			resourcesClass: "core_resources"
+			loaded: -> callback()
+		new Resources spec
+		
+	loadExtras = (callback) ->
+		spec =
+			resources: [
+				{url: "http://puzlet.com/puzlet/php/source.php?pageId=b00bj&file=d3.min.js", var: "d3"}
+				{url: "/puzlet/js/numeric-1.2.6.js", var: "numeric"}
+				{url: "/puzlet/js/jquery.flot.min.js"}  # var?
+			]
+			resourcesClass: "extra_resources"
+			loaded: -> callback()
+		new Resources spec
+		
+	loadPage = (callback) ->
+		$.get("/#{blab}/main.html", (data) -> 
+			Array.prototype.dot = (y) -> numeric.dot(+this, y)  # ZZZ temp
+			container = $ "<div>", id: "blab_container"
+			$(document.body).append container
+			htmlNode()
+			$("#codeout_html").append Wiky.toHtml(data)
+			new MathJaxProcessor
+			loadExtras ->
+				loadMainJs blab  # Does not yet load resources
+				githubForkRibbon blab
+				callback()
+		)
+		
+	
+	#loadJQuery ->
+	#	console.log $
+	load1 ->
+		console.log "Resources loaded"
+		loadPage -> console.log "Page loaded"
+		
+	# First load batch:
+	# jQuery
+	# /puzlet/css/coffeelab.css
+	# /puzlet/js/wiky.js
+	# [blab]/main.css
+	
+	# After these loaded:
+	# [blab]/main.html (AJAX)
+	# Create html node; wiky.
+	# (special) puzlet/images/favicon.ico
+	
+	# After html loaded/rendered:
+	# [blab]/extras, plus:
+		# d3 (in extras)
+		# jQuery UI (JS)
+		# http://code.jquery.com/ui/1.9.2/themes/smoothness/jquery-ui.css
+		# /puzlet/js/numeric-1.2.6.js
+		# /puzlet/js/jquery.flot.min.js
+		
+	# After resources loaded:
+	# [blab]/main.js (later, main.coffee)
+	# Github ribbon
+	
+	
+	
+	
+init1()
+	
+
+
+#$(document).ready ->
+#	console.log "time_doc_ready", Date.now()
 	#Array.prototype.dot = (y) -> numeric.dot(+this, y)  # ZZZ temp
 	#init(-> getBlab())
 	#getBlab()
