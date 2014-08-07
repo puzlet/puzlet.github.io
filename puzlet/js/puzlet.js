@@ -971,6 +971,7 @@
       $(document.body).append(container);
       this.htmlNode(container);
       $("#codeout_html").append(Wiky.toHtml(wiky));
+      this.pageTitle(wiky);
       new MathJaxProcessor;
       return this.loader.loadExtras(function() {
         return _this.loader.loadMainJs(function() {
@@ -985,6 +986,14 @@
       var html;
       html = "<div id=\"code_nodes\" data-module-id=\"\">\n<div class=\"code_node_container\" id=\"code_node_container_html\" data-node-id=\"html\" data-filename=\"main.html\">\n	<div class=\"code_node_output_container\" id=\"output_html\">\n		<div class=\"code_node_html_output\" id=\"codeout_html\"></div>\n	</div>\n</div>\n</div>";
       return container.append(html);
+    };
+
+    Page.prototype.pageTitle = function(wiky) {
+      var matches;
+      matches = wiky.match(/[^|\n][=]{1,6}(.*?)[=]{1,6}[^a-z0-9][\n|$]/);
+      if (matches != null ? matches.length : void 0) {
+        return document.title = matches[1];
+      }
     };
 
     Page.prototype.githubForkRibbon = function() {

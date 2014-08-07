@@ -181,6 +181,7 @@ class Loader
 		$(document.head).append icon
 	
 
+
 class Page
 	
 	# ZZZ what if already rendered?
@@ -194,6 +195,7 @@ class Page
 		$(document.body).append container
 		@htmlNode container
 		$("#codeout_html").append Wiky.toHtml(wiky)
+		@pageTitle wiky
 		new MathJaxProcessor
 		@loader.loadExtras =>
 			@loader.loadMainJs =>
@@ -213,7 +215,11 @@ class Page
 		"""
 		container.append html
 	
-
+	
+	pageTitle: (wiky) ->
+		matches = wiky.match /[^|\n][=]{1,6}(.*?)[=]{1,6}[^a-z0-9][\n|$]/
+		document.title = matches[1] if matches?.length
+	
 	githubForkRibbon: ->
 		src = "https://camo.githubusercontent.com/365986a132ccd6a44c23a9169022c0b5c890c387/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f7265645f6161303030302e706e67"
 		html = """
@@ -234,11 +240,13 @@ init = ->
 		new Page blab, loader, -> console.log "Page loaded"
 init()
 
+
 #=== Not used yet ===
 
 getFileDivs = (blab) ->
 	#test = $ "div[data-file]"
 	#console.log "test", test.attr "data-file"
+
 
 getBlabFromQuery = ->
 	query = location.search.slice(1)
