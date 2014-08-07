@@ -7,26 +7,32 @@ class Resources
 	
 	constructor: (@spec) ->
 		@head = document.getElementsByTagName('head')[0]  # Doesn't work with jQuery.
+		@resources = @spec.resources
 		@load()
 		
 	load: ->
 		
 		@resourcesToLoad = 0
 		
-		resources = @spec.resources
+		resources = @resources
 		unless resources
 			@spec.loaded()
 			return
 		
 		@wait = false
-		for resource in resources
+		#console.log "resources", resources
+		for name, resource of resources
 			url = resource.url
-			if url.indexOf(".js") isnt -1
-				@addScript resource
-			else if url.indexOf(".css") isnt -1
-				@addCss resource
+			#console.log "resource", resource, url
+			if resource.ajax
+				@addFile resource
 			else
-				# Invalid resource.
+				if url.indexOf(".js") isnt -1
+					@addScript resource
+				else if url.indexOf(".css") isnt -1
+					@addCss resource
+				else
+					# Invalid resource.
 			
 		@spec.loaded() if not @wait and @resourcesToLoad is 0
 	
@@ -38,8 +44,9 @@ class Resources
 		url = resource.url
 		@wait = true
 		@resourcesToLoad++
+		t = Date.now()
 		js = document.createElement "script"
-		js.setAttribute "src", url
+		js.setAttribute "src", url+"?t=#{t}"
 		js.setAttribute "type", "text/javascript"
 		js.setAttribute "class", @spec.resourcesClass
 		js.onload = => @resourceLoaded resource
@@ -57,10 +64,20 @@ class Resources
 		css.onload = => @resourceLoaded resource
 		document.head.appendChild css
 		
+	addFile: (resource) ->
+		# Uses jQuery
+		url = resource.url
+		@wait = true
+		@resourcesToLoad++
+		$.get(url, (data) =>
+			resource.content = data
+			@resourceLoaded resource
+		)
+		
 	resourceLoaded: (resource) ->
 		console.log "Loaded", resource
 		@resourcesToLoad--
-		@spec.loaded() if @resourcesToLoad is 0
+		@spec.loaded(@resources) if @resourcesToLoad is 0
 		
 	removeAll: (resourcesClass)->
 		resources = $ ".#{resourcesClass}"
@@ -124,54 +141,94 @@ class MathJaxProcessor
 
 class Loader
 	
+	# Types of resources:
+	
+	# 0. Core - need to be loaded first
+	# jQuery
+	# coffeelab.css (puzlet.css)
+	# Wiky
+	
+	# 1. "Static" page rendering
+	# main.html
+	# Wiky [user-specified?]
+	# Blab CSS (e.g., main.css)
+	
+	# 2. Libraries for page scripts
+	# Libraries: d3, numeric, flot, jQuery UI
+	
+	# 3. Blab imports (may need libraries)
+	# Blab JS/CSS
+	
+	# 4. Page scripts
+	# e.g., main.coffee, main.js, foo.coffee, bar.js
+	
+	# Proposal - put all in resources.json.  Except jQuery and coffeeleb.css (puzlet.css)
+	res =
+		blab:
+			# All have optional "source" property.  source: true means load source via ajax.
+			markup: {url: "main.html"}  # Always gets source; assumes Wiky initially
+			css: {url: "main.css"}  # optional: source: true
+			scripts:
+				main: {url: "main.js"}
+				foo: {url: "foo.coffee"}
+		libraries:
+			d3: {url: "d3"}
+			numeric: {url: ""}
+			flot: {url: ""}
+			x: {url: "/blabId/foo.js"}  # Based on path, blabs get loaded after other libraries.
+		# What about other library dependecies?
+		
 	constructor: (@blab) ->
 		
 	loadCoreResources: (callback) ->
 		spec =
-			resources: [
-				{url: "http://code.jquery.com/jquery-1.8.3.min.js", var: "jQuery"}
-				{url: "/puzlet/css/coffeelab.css"}
-				{url: "/puzlet/js/wiky.js", var: "Wiky"}
-				{url: "/#{@blab}/main.css"}
-			]
+			resources:
+				jQuery: {url: "http://code.jquery.com/jquery-1.8.3.min.js", var: "jQuery"}
+				puzletCss: {url: "/puzlet/css/coffeelab.css"}
+				Wiky: {url: "/puzlet/js/wiky.js", var: "Wiky"}
 			resourcesClass: "core_resources"
 			loaded: -> callback()
 		new Resources spec
 		
+	loadBlabMarkup: (callback) ->
+		spec =
+			resources:
+				mainHtml: {url: "main.html", ajax: true}
+				mainCss: {url: "main.css"}  # No ajax initially
+			resourcesClass: "blab_markup_resources"
+			loaded: (resources) -> callback(resources)
+		new Resources spec
+		
 	loadBlabResourcesFile: (callback) ->
-		$.get("/#{@blab}/resources.json", (data) => callback data)
+		$.get("resources.json", (data) => callback data)
 	
 	loadExtras: (callback) ->
 		@loadBlabResourcesFile (res) ->
 			
-			console.log "res", res
-			
 			spec =
-				resources: [
-					{url: "/puzlet/js/numeric-1.2.6.js", var: "numeric"}
-					{url: "/puzlet/js/jquery.flot.min.js"}  # var?
-					{url: "http://code.jquery.com/ui/1.9.2/themes/smoothness/jquery-ui.css"}
-					{url: "http://code.jquery.com/ui/1.9.2/jquery-ui.min.js"}
-				]
+				resources:
+					numeric: {url: "/puzlet/js/numeric-1.2.6.js", var: "numeric"}
+					flot: {url: "/puzlet/js/jquery.flot.min.js"}  # var?
+					jQueryUiCss: {url: "http://code.jquery.com/ui/1.9.2/themes/smoothness/jquery-ui.css"}
+					jQueryUi: {url: "http://code.jquery.com/ui/1.9.2/jquery-ui.min.js"}
 				resourcesClass: "extra_resources"
 				loaded: -> callback()
 			
 			# Append resources specified by resources.json in blab.
-			spec.resources.push {url: r} for r in res
+			spec.resources["extra"+idx] = {url: r} for r, idx in res  # ZZZ idx is temp
 			
 			new Resources spec
 		
 	loadMainJs: (callback) ->
 		spec =
-			resources: [
-				{url: "/#{@blab}/main.js"}
-			]
+			resources:
+				mainJs: {url: "main.js"}
 			resourcesClass: "main_resources"
 			loaded: -> callback()
 		new Resources spec
 		
-	loadWiky: (callback) ->
-		$.get("/#{@blab}/main.html", (data) => callback data)
+	#loadWiky: (callback) ->
+	#	$.get("main.html", (data) => callback data)
 		
 	loadFavIcon: ->
 		icon = $ "<link>"
@@ -187,14 +244,20 @@ class Page
 	# ZZZ what if already rendered?
 	
 	constructor: (@blab, @loader, @callback) ->
-		@loader.loadWiky (wiky) => @render wiky 
+		@loader.loadBlabMarkup (resources) =>
+			console.log "blab resources", resources.mainHtml
+			wiky = resources.mainHtml.content
+			@render wiky
 		
 	render: (wiky) ->
 		Array.prototype.dot = (y) -> numeric.dot(+this, y)  # ZZZ temp
-		container = $ "<div>", id: "blab_container"
+		container = $ "<div>"
+			id: "blab_container"
+		container.hide()
 		$(document.body).append container
 		@htmlNode container
 		$("#codeout_html").append Wiky.toHtml(wiky)
+		container.show()
 		@pageTitle wiky
 		new MathJaxProcessor
 		@loader.loadExtras =>

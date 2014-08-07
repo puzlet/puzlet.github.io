@@ -687,27 +687,32 @@
     function Resources(spec) {
       this.spec = spec;
       this.head = document.getElementsByTagName('head')[0];
+      this.resources = this.spec.resources;
       this.load();
     }
 
     Resources.prototype.load = function() {
-      var resource, resources, url, _i, _len;
+      var name, resource, resources, url;
       this.resourcesToLoad = 0;
-      resources = this.spec.resources;
+      resources = this.resources;
       if (!resources) {
         this.spec.loaded();
         return;
       }
       this.wait = false;
-      for (_i = 0, _len = resources.length; _i < _len; _i++) {
-        resource = resources[_i];
+      for (name in resources) {
+        resource = resources[name];
         url = resource.url;
-        if (url.indexOf(".js") !== -1) {
-          this.addScript(resource);
-        } else if (url.indexOf(".css") !== -1) {
-          this.addCss(resource);
+        if (resource.ajax) {
+          this.addFile(resource);
         } else {
+          if (url.indexOf(".js") !== -1) {
+            this.addScript(resource);
+          } else if (url.indexOf(".css") !== -1) {
+            this.addCss(resource);
+          } else {
 
+          }
         }
       }
       if (!this.wait && this.resourcesToLoad === 0) {
@@ -716,7 +721,7 @@
     };
 
     Resources.prototype.addScript = function(resource) {
-      var js, url,
+      var js, t, url,
         _this = this;
       if (window[resource["var"]]) {
         console.log("Already loaded", resource);
@@ -725,8 +730,9 @@
       url = resource.url;
       this.wait = true;
       this.resourcesToLoad++;
+      t = Date.now();
       js = document.createElement("script");
-      js.setAttribute("src", url);
+      js.setAttribute("src", url + ("?t=" + t));
       js.setAttribute("type", "text/javascript");
       js.setAttribute("class", this.spec.resourcesClass);
       js.onload = function() {
@@ -752,11 +758,23 @@
       return document.head.appendChild(css);
     };
 
+    Resources.prototype.addFile = function(resource) {
+      var url,
+        _this = this;
+      url = resource.url;
+      this.wait = true;
+      this.resourcesToLoad++;
+      return $.get(url, function(data) {
+        resource.content = data;
+        return _this.resourceLoaded(resource);
+      });
+    };
+
     Resources.prototype.resourceLoaded = function(resource) {
       console.log("Loaded", resource);
       this.resourcesToLoad--;
       if (this.resourcesToLoad === 0) {
-        return this.spec.loaded();
+        return this.spec.loaded(this.resources);
       }
     };
 
@@ -842,6 +860,40 @@
   })();
 
   Loader = (function() {
+    var res;
+
+    res = {
+      blab: {
+        markup: {
+          url: "main.html"
+        },
+        css: {
+          url: "main.css"
+        },
+        scripts: {
+          main: {
+            url: "main.js"
+          },
+          foo: {
+            url: "foo.coffee"
+          }
+        }
+      },
+      libraries: {
+        d3: {
+          url: "d3"
+        },
+        numeric: {
+          url: ""
+        },
+        flot: {
+          url: ""
+        },
+        x: {
+          url: "/blabId/foo.js"
+        }
+      }
+    };
 
     function Loader(blab) {
       this.blab = blab;
@@ -850,19 +902,19 @@
     Loader.prototype.loadCoreResources = function(callback) {
       var spec;
       spec = {
-        resources: [
-          {
+        resources: {
+          jQuery: {
             url: "http://code.jquery.com/jquery-1.8.3.min.js",
             "var": "jQuery"
-          }, {
+          },
+          puzletCss: {
             url: "/puzlet/css/coffeelab.css"
-          }, {
+          },
+          Wiky: {
             url: "/puzlet/js/wiky.js",
             "var": "Wiky"
-          }, {
-            url: "/" + this.blab + "/main.css"
           }
-        ],
+        },
         resourcesClass: "core_resources",
         loaded: function() {
           return callback();
@@ -871,40 +923,62 @@
       return new Resources(spec);
     };
 
+    Loader.prototype.loadBlabMarkup = function(callback) {
+      var spec;
+      spec = {
+        resources: {
+          mainHtml: {
+            url: "main.html",
+            ajax: true
+          },
+          mainCss: {
+            url: "main.css"
+          }
+        },
+        resourcesClass: "blab_markup_resources",
+        loaded: function(resources) {
+          return callback(resources);
+        }
+      };
+      return new Resources(spec);
+    };
+
     Loader.prototype.loadBlabResourcesFile = function(callback) {
       var _this = this;
-      return $.get("/" + this.blab + "/resources.json", function(data) {
+      return $.get("resources.json", function(data) {
         return callback(data);
       });
     };
 
     Loader.prototype.loadExtras = function(callback) {
       return this.loadBlabResourcesFile(function(res) {
-        var r, spec, _i, _len;
-        console.log("res", res);
+        var idx, r, spec, _i, _len;
         spec = {
-          resources: [
-            {
+          resources: {
+            numeric: {
               url: "/puzlet/js/numeric-1.2.6.js",
               "var": "numeric"
-            }, {
+            },
+            flot: {
               url: "/puzlet/js/jquery.flot.min.js"
-            }, {
+            },
+            jQueryUiCss: {
               url: "http://code.jquery.com/ui/1.9.2/themes/smoothness/jquery-ui.css"
-            }, {
+            },
+            jQueryUi: {
               url: "http://code.jquery.com/ui/1.9.2/jquery-ui.min.js"
             }
-          ],
+          },
           resourcesClass: "extra_resources",
           loaded: function() {
             return callback();
           }
         };
-        for (_i = 0, _len = res.length; _i < _len; _i++) {
-          r = res[_i];
-          spec.resources.push({
+        for (idx = _i = 0, _len = res.length; _i < _len; idx = ++_i) {
+          r = res[idx];
+          spec.resources["extra" + idx] = {
             url: r
-          });
+          };
         }
         return new Resources(spec);
       });
@@ -913,24 +987,17 @@
     Loader.prototype.loadMainJs = function(callback) {
       var spec;
       spec = {
-        resources: [
-          {
-            url: "/" + this.blab + "/main.js"
+        resources: {
+          mainJs: {
+            url: "main.js"
           }
-        ],
+        },
         resourcesClass: "main_resources",
         loaded: function() {
           return callback();
         }
       };
       return new Resources(spec);
-    };
-
-    Loader.prototype.loadWiky = function(callback) {
-      var _this = this;
-      return $.get("/" + this.blab + "/main.html", function(data) {
-        return callback(data);
-      });
     };
 
     Loader.prototype.loadFavIcon = function() {
@@ -954,7 +1021,10 @@
       this.blab = blab;
       this.loader = loader;
       this.callback = callback;
-      this.loader.loadWiky(function(wiky) {
+      this.loader.loadBlabMarkup(function(resources) {
+        var wiky;
+        console.log("blab resources", resources.mainHtml);
+        wiky = resources.mainHtml.content;
         return _this.render(wiky);
       });
     }
@@ -968,9 +1038,11 @@
       container = $("<div>", {
         id: "blab_container"
       });
+      container.hide();
       $(document.body).append(container);
       this.htmlNode(container);
       $("#codeout_html").append(Wiky.toHtml(wiky));
+      container.show();
       this.pageTitle(wiky);
       new MathJaxProcessor;
       return this.loader.loadExtras(function() {
