@@ -124,10 +124,6 @@ class MathJaxProcessor
 
 class Loader
 	
-	# TODO:
-	# jQuery UI (JS)
-	# http://code.jquery.com/ui/1.9.2/themes/smoothness/jquery-ui.css
-	
 	constructor: (@blab) ->
 		
 	loadCoreResources: (callback) ->
@@ -141,20 +137,29 @@ class Loader
 			resourcesClass: "core_resources"
 			loaded: -> callback()
 		new Resources spec
+		
+	loadBlabResourcesFile: (callback) ->
+		$.get("/#{@blab}/resources.json", (data) => callback data)
 	
 	loadExtras: (callback) ->
-		# ZZZ get some of these from JSON file in blab, e.g., d3.  but same for numeric/flot?
-		spec =
-			resources: [
-				{url: "http://puzlet.com/puzlet/php/source.php?pageId=b00bj&file=d3.min.js", var: "d3"}
-				{url: "/puzlet/js/numeric-1.2.6.js", var: "numeric"}
-				{url: "/puzlet/js/jquery.flot.min.js"}  # var?
-				{url: "http://code.jquery.com/ui/1.9.2/themes/smoothness/jquery-ui.css"}
-				{url: "http://code.jquery.com/ui/1.9.2/jquery-ui.min.js"}
-			]
-			resourcesClass: "extra_resources"
-			loaded: -> callback()
-		new Resources spec
+		@loadBlabResourcesFile (res) ->
+			
+			console.log "res", res
+			
+			spec =
+				resources: [
+					{url: "/puzlet/js/numeric-1.2.6.js", var: "numeric"}
+					{url: "/puzlet/js/jquery.flot.min.js"}  # var?
+					{url: "http://code.jquery.com/ui/1.9.2/themes/smoothness/jquery-ui.css"}
+					{url: "http://code.jquery.com/ui/1.9.2/jquery-ui.min.js"}
+				]
+				resourcesClass: "extra_resources"
+				loaded: -> callback()
+			
+			# Append resources specified by resources.json in blab.
+			spec.resources.push {url: r} for r in res
+			
+			new Resources spec
 		
 	loadMainJs: (callback) ->
 		spec =

@@ -871,30 +871,43 @@
       return new Resources(spec);
     };
 
+    Loader.prototype.loadBlabResourcesFile = function(callback) {
+      var _this = this;
+      return $.get("/" + this.blab + "/resources.json", function(data) {
+        return callback(data);
+      });
+    };
+
     Loader.prototype.loadExtras = function(callback) {
-      var spec;
-      spec = {
-        resources: [
-          {
-            url: "http://puzlet.com/puzlet/php/source.php?pageId=b00bj&file=d3.min.js",
-            "var": "d3"
-          }, {
-            url: "/puzlet/js/numeric-1.2.6.js",
-            "var": "numeric"
-          }, {
-            url: "/puzlet/js/jquery.flot.min.js"
-          }, {
-            url: "http://code.jquery.com/ui/1.9.2/themes/smoothness/jquery-ui.css"
-          }, {
-            url: "http://code.jquery.com/ui/1.9.2/jquery-ui.min.js"
+      return this.loadBlabResourcesFile(function(res) {
+        var r, spec, _i, _len;
+        console.log("res", res);
+        spec = {
+          resources: [
+            {
+              url: "/puzlet/js/numeric-1.2.6.js",
+              "var": "numeric"
+            }, {
+              url: "/puzlet/js/jquery.flot.min.js"
+            }, {
+              url: "http://code.jquery.com/ui/1.9.2/themes/smoothness/jquery-ui.css"
+            }, {
+              url: "http://code.jquery.com/ui/1.9.2/jquery-ui.min.js"
+            }
+          ],
+          resourcesClass: "extra_resources",
+          loaded: function() {
+            return callback();
           }
-        ],
-        resourcesClass: "extra_resources",
-        loaded: function() {
-          return callback();
+        };
+        for (_i = 0, _len = res.length; _i < _len; _i++) {
+          r = res[_i];
+          spec.resources.push({
+            url: r
+          });
         }
-      };
-      return new Resources(spec);
+        return new Resources(spec);
+      });
     };
 
     Loader.prototype.loadMainJs = function(callback) {
