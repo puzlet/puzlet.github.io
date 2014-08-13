@@ -144,13 +144,13 @@ PaperScript = (function() {
 		// Recursively walks the AST and replaces the code of certain nodes
 		function walkAST(node, parent) {
 			// MVC
-			console.log("parent/node", (parent ? parent.type : null), node);
-			if (node.type==="ExpressionStatement" && node.expression.callee.name==="oo") {
-				console.log("***oo", parent);
-			}
-			if (node.type==="BlockStatement") {
-				console.log("===block parent", parent);
-			}
+			//console.log("parent/node", (parent ? parent.type : null), node);
+			//if (node.type==="ExpressionStatement" && node.expression.callee.name==="oo") {
+			//	console.log("***oo", parent);
+			//}
+			//if (node.type==="BlockStatement") {
+			//	console.log("===block parent", parent);
+			//}
 			//
 	
 			if (!node)

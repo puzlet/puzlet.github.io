@@ -1,63 +1,12 @@
-window.$pz = {}
-window.$blab = {}  # Exported interface.
-
-#=== RESOURCE LOADING ===
-
-#---Phase 1: LOAD PUZLET---
-# index.html loads puzlet.js.  (<script> tag in a repo's index.html.)
-
-#---Phase 2: CORE LIBRARIES---
-# puzlet.js (dynamically) loads and runs jQuery and Wiky.  (Run = append to head.)
-
-#---Phase 3: RESOURCES LIST---
-# Load resources.json from blab repo.  (Need jQuery to do this - for ajax $.get.)
-# Parse resources.json to get ordered lists of a) html; b) css; c) js; d) coffee.
-# Flag each resource as either "blab" (from current blab) or "external" (from another blab or external url).
-
-#---Phase 4: HTML/CSS---
-# (Don't load scripts yet; improves html rendering speed.)
-# Prepend /puzlet/css/puzlet.css to css list.  (Currently coffeelab.css; needs to be simplified.)
-# Async load html (ajax) and css: external css via <link> (auto-appended to dom); blab css via ajax.
-# After all html/css loaded:
-#   * append blab css to dom (in order).
-# 	* create blab_container div; process html via Wiky; append processed html to blab_container, in order.
-# html and blab css available as source to be edited in browser.
-
-#---Phase 5: SCRIPTS---
-# Prepend to js list: coffeescript.js, acorn.js, numeric.js, compile.js (PaperScript).
-# Async load js and coffee: *external* js via <script> (auto-appended to dom, and run); blab js and all coffee via ajax.
-# [Typical resources (and order): blab js/coffee, d3, flot, jQuery-UI, imported blab js/coffee.]
-# After all scripts loaded: 
-#   * compile each coffee file, with post-js processing if not #!vanilla.
-#   * append JS (blab js or compiled coffee) to dom: external js (from coffee) first, then current blab js.
-# coffee and blab js available as source to be edited in browser.
-
-# Note: for large JS file (even 3rd party), put in repo without gh-pages (web page).
-
-#--- Example resources.json ---
-# Note that order is important for html rendering order, css cascade order, and script execution order.
-# But blab resources are always loaded after external resources and so can go at top.
-###
-[
-	"main.html",
-	"style.css",
-	"bar.js",
-	"foo.coffee",
-	"main.coffee",
-	"/some-repo/snippet.html",
-	"/other-repo/foo.css",
-	"/puzlet/js/d3.min.js",
-	"http://domain.com/script.js",
-	"/ode-fixed/ode.coffee"
-]
-###
-
-#--- Viewing/editing/running code in blab page ---
-# Code of any file in *current* blab can be viewed in page, by inserting <div> code in main.html (or any html file):
-# <div data-file="foo.coffee"></div>
-
-# If this code is edited (and ok/run button pressed), it replaces the previous code (and executes if it's a script).
-# Later, we'll support way of saving edited code to gist.
+# TODO:
+# @var?
+# *** Option to reload => remove old resource?
+# BUG: multiple html nodes - all have same id
+# pageTitle: for first wiky only
+# CreateResource: null ok?
+# Support blab subfolder resources => can't just detect / in name.
+# coffee compile: do external first; then blabs.
+# superclass method: add tag to head?
 
 class Resource
 	
@@ -67,16 +16,16 @@ class Resource
 		@var = @spec.var  # window variable name  # ZZZ needed here?
 		@fileExt = Resource.getFileExt @url
 		@loaded = false
-		@head = document.head  # Doesn't work with jQuery.
+		@head = document.head
 	
 	load: (callback, type="text") ->
 		# Default file load method.
 		# Uses jQuery.
-		@wait = true  # ZZZ how should this be used?
 		success = (data) =>
 			@content = data
 			@postLoad callback
-		$.get(@url, success, type)
+		t = Date.now()
+		$.get(@url+"?t=#{t}", success, type)
 			
 	postLoad: (callback) ->
 		@loaded = true
@@ -99,25 +48,35 @@ class Resource
 					return true if resource.isType type
 				false
 
-class HtmlResource extends Resource
-	
-	# load method from superclass
 
-class CssResourceInline extends Resource
+class HtmlResource extends Resource
+
+
+class ResourceInline extends Resource
+	
+	# Abstract class.
+	# Subclass defines properties tag and mime.
 	
 	load: (callback) ->
 		super =>
-			@style = $ "<style>"
-				type: "text/css"
+			@element = $ "<#{@tag}>",
+				type: @mime
 				"data-url": @url
-			@style.append @content
+			@element.text @content
 			callback?()
 			
 	inDom: ->
-		$("style[data-url='#{@url}']").length
-			
+		$("#{@tag}[data-url='#{@url}']").length
+		
 	appendToHead: ->
-		@head.appendChild @style[0] unless @inDom()
+		@head.appendChild @element[0] unless @inDom()
+	
+class CssResourceInline extends ResourceInline
+	
+	tag: "style"
+	mime: "text/css"
+
+
 
 class CssResourceLinked extends Resource
 	
@@ -130,21 +89,12 @@ class CssResourceLinked extends Resource
 		@style.onload = => @postLoad callback
 		@head.appendChild @style
 
-class JsResourceInline extends Resource
+
+class JsResourceInline extends ResourceInline
 	
-	load: (callback) ->
-		super =>
-			@script = $ "<script>"
-				type: "text/javascript"
-				"data-url": @url
-			@script.append @content
-			callback?()
-			
-	inDom: ->
-		$("script[data-url='#{@url}']").length
-			
-	appendToHead: ->
-		@head.appendChild @script[0] unless @inDom()
+	tag: "script"
+	mime: "text/javascript"
+
 
 class JsResourceLinked extends Resource
 	
@@ -162,11 +112,24 @@ class JsResourceLinked extends Resource
 		t = Date.now()
 		@script.setAttribute "src", @url+"?t=#{t}"
 		#@script.setAttribute "data-url", @url
-	
+
+
 class CoffeeResource extends Resource
 	
-	# load method from superclass
-		
+	load: (callback) ->
+		super =>
+			@element = $ "<script>",
+				type: "text/javascript"
+				"data-url": @url
+			callback?()
+	
+	compile: ->
+		# Alternative: CoffeeEvaluator.eval
+		js = CoffeeEvaluator.compile @content
+		@element.text js
+		@head.appendChild @element[0]
+
+
 class JsonResource extends Resource
 	
 	load: (callback) -> super callback, "json"
@@ -174,6 +137,17 @@ class JsonResource extends Resource
 
 class Resources
 	
+	# The resource type if based on:
+	#   * file extension (html, css, js, coffee, json)
+	#   * url path (in blab or external).
+	# Ajax-loaded resources:
+	#   * Any resource in current blab.
+	#   * html, coffee, json resources.
+	# For ajax-loaded resources, source is available for in-browser editing.
+	# All other resources are "linked" resources - loaded via <link href=...> or <script src=...>.
+	# load method specifies resources to load (via filter):
+	#   * linked resources are appended to DOM as soon as they are loaded.
+	#   * ajax-loaded resources are appended after all resources loaded (for call to load).
 	resourceTypes:
 		html: {blab: HtmlResource, ext: HtmlResource}
 		css: {blab: CssResourceInline, ext: CssResourceLinked}
@@ -194,25 +168,21 @@ class Resources
 		if newResources.length is 1 then newResources[0] else newResources
 		
 	createResource: (spec) ->
-		
 		url = spec.url
 		fileExt = Resource.getFileExt url
 		location = if url.indexOf("/") is -1 then "blab" else "ext"
-		
-		if @resourceTypes[fileExt]
-			new @resourceTypes[fileExt][location](spec)
-		else
-			null  # ZZZ ok?
+		spec.location = location  # Needed for coffee compiling
+		if @resourceTypes[fileExt] then new @resourceTypes[fileExt][location](spec) else null
 	
 	load: (filter, loaded) ->
-		# ZZZ need "wait" here?  use "var" here to not load if already loaded?
-		# ZZZ Option to reload => remove old resource?
-		
 		# When are resources added to DOM?
 		#   * Linked resources: as soon as they are loaded.
 		#   * Inline resources (with appendToHead method): *after* all resources are loaded.
 		filter = @filterFunction filter
 		resources = @select((resource) -> not resource.loaded and filter(resource))
+		if resources.length is 0
+			loaded?()
+			return
 		resourcesToLoad = 0
 		resourceLoaded = =>
 			resourcesToLoad--
@@ -222,7 +192,7 @@ class Resources
 		for resource in resources
 			resourcesToLoad++
 			resource.load -> resourceLoaded()
-				
+	
 	loadUnloaded: (loaded) ->
 		# Loads all unloaded resources.
 		@load (-> true), loaded
@@ -239,6 +209,273 @@ class Resources
 	filterFunction: (filter) ->
 		if typeof filter is "function" then filter else Resource.typeFilter(filter)
 
+
+class Loader
+	
+	#--- Example resources.json ---
+	# Note that order is important for html rendering order, css cascade order, and script execution order.
+	# But blab resources can go at top because always loaded after external resources.
+	###
+	[
+		"main.html",
+		"style.css",
+		"bar.js",
+		"foo.coffee",
+		"main.coffee",
+		"/some-repo/snippet.html",
+		"/other-repo/foo.css",
+		"/puzlet/js/d3.min.js",
+		"http://domain.com/script.js",
+		"/ode-fixed/ode.coffee"
+	]
+	###
+	
+	coreResources: [
+		{url: "http://code.jquery.com/jquery-1.8.3.min.js", var: "jQuery"}
+		{url: "/puzlet/js/wiky.js", var: "Wiky"}
+	]
+	
+	resourcesList: {url: "resources.json"}
+	
+	htmlResources: [
+		{url: "/puzlet/css/coffeelab.css"}
+	]
+	
+	scriptResources: [
+		{url: "/puzlet/js/coffeescript.js"}
+		{url: "/puzlet/js/acorn.js"}
+		{url: "/puzlet/js/numeric-1.2.6.js"}
+		{url: "/puzlet/js/compile.js"}
+	]
+	# {url: "/puzlet/js/jquery.flot.min.js"}
+	# {url: "http://code.jquery.com/ui/1.9.2/themes/smoothness/jquery-ui.css"}
+	# {url: "http://code.jquery.com/ui/1.9.2/jquery-ui.min.js"}
+	
+	constructor: (@blab, @render, @done) ->
+		@resources = new Resources
+		@loadCoreResources => @loadResourceList => @loadHtmlCss => @loadScripts => @done()
+	
+	# Dynamically load and run jQuery and Wiky.
+	loadCoreResources: (callback) ->
+		@resources.add @coreResources
+		@resources.loadUnloaded callback
+		
+	# Load and parse resources.json.  (Need jQuery to do this; uses ajax $.get.)
+	# Get ordered list of resources (html, css, js, coffee).
+	# Prepend /puzlet/css/puzlet.css to list; prepend script resources (CoffeeScript compiler; math).
+	loadResourceList: (callback) ->
+		list = @resources.add @resourcesList
+		@resources.loadUnloaded => 
+			@resources.add @htmlResources
+			@resources.add @scriptResources
+			@resources.add({url: url} for url in list.content)
+			callback?()
+	
+	# Async load html and css:
+	#   * all html via ajax.
+	#   * external css via <link>; auto-appended to dom as soon as resource loaded.
+	#   * blab css via ajax; auto-appended to dom (inline) after *all* html/css loaded.
+	# After all html/css loaded, render html via Wiky.
+	# html and blab css available as source to be edited in browser.
+	loadHtmlCss: (callback) ->
+		@resources.load ["html", "css"], =>
+			@render html.content for html in @resources.select("html")
+			callback?()
+	
+	# Async load js and coffee:
+	#   * external js via <script>; auto-appended to dom, and run.
+	#   * blab js and all coffee via ajax; auto-appended to dom (inline) after *all* js/coffee loaded.
+	# After all scripts loaded: 
+	#   * compile each coffee file, with post-js processing if not #!vanilla.
+	#   * append JS (blab js or compiled coffee) to dom: external js (from coffee) first, then current blab js.
+	# coffee and blab js available as source to be edited in browser.
+	# (Loading scripts after HTML/CSS improves html rendering speed.)
+	# Note: for large JS file (even 3rd party), put in repo without gh-pages (web page).
+	loadScripts: (callback) ->
+		@resources.load ["js", "coffee"], =>
+			@compileCoffee()
+			callback?()
+			
+	compileCoffee: ->
+		# ZZZ do external first; then blabs.
+		coffee.compile() for coffee in @resources.select "coffee"
+
+
+class Page
+	
+	constructor: (@blab) ->
+	
+	mainContainer: ->
+		return if @container?
+		@container = $ "<div>", id: "blab_container"
+		@container.hide()
+		$(document.body).append @container
+		@container.show()  # ZZZ should show only after all html rendered - need another event.
+	
+	render: (wikyHtml) ->
+		@mainContainer() unless @container?
+		htmlNode = @htmlNode()
+		htmlNode.append Wiky.toHtml(wikyHtml)
+		@pageTitle wikyHtml  # ZZZ should work only for first wikyHtml
+		
+	ready: ->
+		new MathJaxProcessor  # ZZZ should be after all html rendered?
+		new FavIcon
+		new GithubRibbon @container, @blab
+		
+	htmlNode: ->
+		html = """
+		<div id="code_nodes" data-module-id="">
+		<div class="code_node_container" id="code_node_container_html" data-node-id="html" data-filename="main.html">
+			<div class="code_node_output_container" id="output_html">
+				<div class="code_node_html_output" id="codeout_html"></div>
+			</div>
+		</div>
+		</div>
+		"""
+		@container.append html
+		$("#codeout_html")  # ZZZ improve so html constructed via jQuery?  or via template
+		
+	pageTitle: (wikyHtml) ->
+		matches = wikyHtml.match /[^|\n][=]{1,6}(.*?)[=]{1,6}[^a-z0-9][\n|$]/
+		document.title = matches[1] if matches?.length
+
+
+class FavIcon
+	
+	constructor: ->
+		icon = $ "<link>"
+			rel: "icon"
+			type: "image/png"
+			href: "/puzlet/images/favicon.ico"
+		$(document.head).append icon
+
+
+class GithubRibbon
+	
+	constructor: (@container, @blab) ->
+	
+		src = "https://camo.githubusercontent.com/365986a132ccd6a44c23a9169022c0b5c890c387/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f7265645f6161303030302e706e67"
+		html = """
+			<a href="https://github.com/puzlet/#{@blab}" id="ribbon" style="opacity:0.2">
+			<img style="position: absolute; top: 0; right: 0; border: 0;" src="#{src}" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_red_aa0000.png"></a>
+		"""
+		@container.append(html)
+		setTimeout (-> $("#ribbon").fadeTo(400, 1).fadeTo(400, 0.2)), 2000
+
+
+class MathJaxProcessor
+	
+	source: "http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=default"
+		# default, TeX-AMS-MML_SVG, TeX-AMS-MML_HTMLorMML
+	#outputSelector: ".code_node_html_output"
+	mode: "HTML-CSS"  # HTML-CSS, SVG, or NativeMML
+	
+	constructor: ->  # ZZZ param via mode?
+	
+		#return # DEBUG
+		
+		@outputId = "blab_container"
+#		@outputId = "codeout_html"
+		
+		#MathJaxProcessor?.mode = "SVG"
+		
+		#@mode = "SVG"
+		# return if $blab.mathjaxConfig already exists?
+		
+		$blab.mathjaxConfig = =>
+			$.event.trigger "mathjaxPreConfig"
+			window.MathJax.Hub.Config
+				jax: ["input/TeX", "output/#{@mode}"]
+				tex2jax: {inlineMath: [["$", "$"], ["\\(", "\\)"]]}
+				TeX: {equationNumbers: {autoNumber: "AMS"}}
+				elements: [@outputId, "blab_refs"]
+				showProcessingMessages: false
+				#"HTML-CSS": {scale: 100}
+				MathMenu:
+					showRenderer: true
+			window.MathJax.HTML.Cookie.Set "menu", renderer: @mode
+			#console.log "mathjax", window.MathJax.Hub
+		
+		configScript = $ "<script>",
+			type: "text/x-mathjax-config"
+			text: "$blab.mathjaxConfig();"
+		mathjax = $ "<script>",
+			type: "text/javascript"
+			src: @source
+		$("head").append(configScript).append(mathjax)
+		
+		$(document).on "htmlOutputUpdated", => @process()
+		
+	process: ->
+		return unless MathJax?
+		@id = @outputId  # Only one node.  ZZZ or do via actual dom element?
+		#console.log "mj id", @id
+		Hub = MathJax.Hub
+		queue = (x) -> Hub.Queue x
+		queue ["PreProcess", Hub, @id]
+		queue ["Process", Hub, @id]
+		configElements = => Hub.config.elements = [@id]
+		queue configElements
+
+
+class CoffeeEvaluator
+	
+	@compile = (code, bare=false) ->
+		CoffeeEvaluator.blabCoffee ?= new BlabCoffee
+		js = CoffeeEvaluator.blabCoffee.compile code, bare
+		
+	@eval = (code, js=null) ->
+		# Pass js if don't want to recompile
+		js = CoffeeEvaluator.compile code unless js
+		eval js
+		js
+
+
+init = ->
+	window.$pz = {}
+	window.$blab = {}  # Exported interface.
+	window.console = {} unless window.console?
+	window.console.log = (->) unless window.console.log?
+	blab = window.location.pathname.split("/")[1]  # ZZZ more robust way?
+	return unless blab and blab isnt "puzlet.github.io"
+	page = new Page
+	render = (wikyHtml) -> page.render wikyHtml
+	ready = -> page.ready()
+	loader = new Loader blab, render, ready
+
+init()
+
+
+#=== Not used yet ===
+
+#=== RESOURCE EDITING IN BROWSER ===
+
+#--- Viewing/editing/running code in blab page ---
+# Code of any file in *current* blab can be viewed in page, by inserting <div> code in main.html (or any html file):
+# <div data-file="foo.coffee"></div>
+
+# If this code is edited (and ok/run button pressed), it replaces the previous code (and executes if it's a script).
+# Later, we'll support way of saving edited code to gist.
+
+getFileDivs = (blab) ->
+	#test = $ "div[data-file]"
+	#console.log "test", test.attr "data-file"
+
+
+getBlabFromQuery = ->
+	query = location.search.slice(1)
+	return null unless query
+	h = query.split "&"
+	p = h?[0].split "="
+	blab = if p.length and p[0] is "blab" then p[1] else null
+
+
+#=== OLD ===
+
+#oldLoader = new OLDLoader blab
+#oldLoader.loadCoreResources ->
+#	new OLDPage blab, oldLoader, -> console.log "Page loaded"
 
 class OLDResources
 	
@@ -323,110 +560,6 @@ class OLDResources
 		resources = $ ".#{resourcesClass}"
 		resources.remove() if resources.length
 
-
-class MathJaxProcessor
-	
-	source: "http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=default"
-		# default, TeX-AMS-MML_SVG, TeX-AMS-MML_HTMLorMML
-	#outputSelector: ".code_node_html_output"
-	mode: "HTML-CSS"  # HTML-CSS, SVG, or NativeMML
-	
-	constructor: ->  # ZZZ param via mode?
-	
-		#return # DEBUG
-		
-		@outputId = "blab_container"
-#		@outputId = "codeout_html"
-		
-		#MathJaxProcessor?.mode = "SVG"
-		
-		#@mode = "SVG"
-		# return if $blab.mathjaxConfig already exists?
-		
-		$blab.mathjaxConfig = =>
-			$.event.trigger "mathjaxPreConfig"
-			window.MathJax.Hub.Config
-				jax: ["input/TeX", "output/#{@mode}"]
-				tex2jax: {inlineMath: [["$", "$"], ["\\(", "\\)"]]}
-				TeX: {equationNumbers: {autoNumber: "AMS"}}
-				elements: [@outputId, "blab_refs"]
-				showProcessingMessages: false
-				#"HTML-CSS": {scale: 100}
-				MathMenu:
-					showRenderer: true
-			window.MathJax.HTML.Cookie.Set "menu", renderer: @mode
-			#console.log "mathjax", window.MathJax.Hub
-		
-		configScript = $ "<script>",
-			type: "text/x-mathjax-config"
-			text: "$blab.mathjaxConfig();"
-		mathjax = $ "<script>",
-			type: "text/javascript"
-			src: @source
-		$("head").append(configScript).append(mathjax)
-		
-		$(document).on "htmlOutputUpdated", => @process()
-		
-	process: ->
-		return unless MathJax?
-		@id = @outputId  # Only one node.  ZZZ or do via actual dom element?
-		#console.log "mj id", @id
-		Hub = MathJax.Hub
-		queue = (x) -> Hub.Queue x
-		queue ["PreProcess", Hub, @id]
-		queue ["Process", Hub, @id]
-		configElements = => Hub.config.elements = [@id]
-		queue configElements
-
-
-class Loader
-	
-	coreResources: [
-		{url: "http://code.jquery.com/jquery-1.8.3.min.js", var: "jQuery"}
-		{url: "/puzlet/js/wiky.js", var: "Wiky"}
-	]
-	
-	resourcesList: {url: "resources.json"}
-	
-	htmlResources: [
-		{url: "/puzlet/css/coffeelab.css"}  # ZZZ later, make this puzlet.css
-	]
-	
-	scriptResources: [
-		{url: "/puzlet/js/coffeescript.js"}
-		{url: "/puzlet/js/acorn.js"}
-		{url: "/puzlet/js/numeric-1.2.6.js"}
-		{url: "/puzlet/js/compile.js"}
-	]
-	# {url: "/puzlet/js/jquery.flot.min.js"}
-	# {url: "http://code.jquery.com/ui/1.9.2/themes/smoothness/jquery-ui.css"}
-	# {url: "http://code.jquery.com/ui/1.9.2/jquery-ui.min.js"}
-	
-	constructor: (@blab, @render, @done) ->
-		@resources = new Resources
-		@loadCoreResources => @loadResourceList => @loadHtmlCss => @loadScripts => @done()
-	
-	loadCoreResources: (callback) ->
-		@resources.add @coreResources
-		@resources.loadUnloaded callback
-		
-	loadResourceList: (callback) ->
-		list = @resources.add @resourcesList
-		@resources.loadUnloaded => 
-			@resources.add({url: url} for url in list.content)
-			@resources.add @htmlResources
-			@resources.add @scriptResources
-			callback?()
-		
-	loadHtmlCss: (callback) ->
-		@resources.load ["html", "css"], =>
-			@render html.content for html in @resources.select("html")
-			callback?()
-			
-	loadScripts: (callback) ->
-		@resources.load ["js", "coffee"], =>
-			# ZZZ TODO: coffee
-			callback?()
 
 class OLDLoader
 	
@@ -560,105 +693,5 @@ class OLDPage
 		setTimeout (-> $("#ribbon").fadeTo(400, 1).fadeTo(400, 0.2)), 2000
 
 
-class Page
-	
-	constructor: (@blab) ->
-		Array.prototype.dot = (y) -> numeric.dot(+this, y)  # ZZZ temp
-	
-	mainContainer: ->
-		return if @container?
-		@container = $ "<div>", id: "blab_container"
-		@container.hide()
-		$(document.body).append @container
-		@container.show()  # ZZZ should show only after all html rendered - need another event.
-	
-	render: (wikyHtml) ->
-		@mainContainer() unless @container?
-		htmlNode = @htmlNode()
-		htmlNode.append Wiky.toHtml(wikyHtml)
-		@pageTitle wikyHtml  # ZZZ should work only for first wikyHtml
-		
-	ready: ->
-		new MathJaxProcessor  # ZZZ should be after all html rendered?
-		new FavIcon
-		new GithubRibbon @container, @blab
-		
-	htmlNode: ->
-		html = """
-		<div id="code_nodes" data-module-id="">
-		<div class="code_node_container" id="code_node_container_html" data-node-id="html" data-filename="main.html">
-			<div class="code_node_output_container" id="output_html">
-				<div class="code_node_html_output" id="codeout_html"></div>
-			</div>
-		</div>
-		</div>
-		"""
-		@container.append html
-		$("#codeout_html")  # ZZZ improve so html constructed via jQuery?  or via template
-		
-	pageTitle: (wikyHtml) ->
-		matches = wikyHtml.match /[^|\n][=]{1,6}(.*?)[=]{1,6}[^a-z0-9][\n|$]/
-		document.title = matches[1] if matches?.length
-
-
-class FavIcon
-	
-	constructor: ->
-		icon = $ "<link>"
-			rel: "icon"
-			type: "image/png"
-			href: "/puzlet/images/favicon.ico"
-		$(document.head).append icon
-
-
-class GithubRibbon
-	
-	constructor: (@container, @blab) ->
-	
-		src = "https://camo.githubusercontent.com/365986a132ccd6a44c23a9169022c0b5c890c387/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f7265645f6161303030302e706e67"
-		html = """
-			<a href="https://github.com/puzlet/#{@blab}" id="ribbon" style="opacity:0.2">
-			<img style="position: absolute; top: 0; right: 0; border: 0;" src="#{src}" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_red_aa0000.png"></a>
-		"""
-		@container.append(html)
-		setTimeout (-> $("#ribbon").fadeTo(400, 1).fadeTo(400, 0.2)), 2000
-
-
-init = ->
-	window.console = {} unless window.console?
-	window.console.log = (->) unless window.console.log?
-	blab = window.location.pathname.split("/")[1]  # ZZZ more robust way?
-	return unless blab and blab isnt "puzlet.github.io"
-	#oldLoader = new OLDLoader blab
-	#oldLoader.loadCoreResources ->
-	#	new OLDPage blab, oldLoader, -> console.log "Page loaded"
-	page = new Page
-	render = (wikyHtml) -> page.render wikyHtml
-	ready = -> page.ready()
-	loader = new Loader blab, render, ready
-		
-	
-init()
-
-#test = ->
-#	js = "var foo = function() {var z=1; oo(); var y=1;  var bar = function() {oo();};  var zz=1;};\nvar x=1;\nfoo();";
-#	js = PaperScript.compile js
-#	console.log "js", js
-#test()
-
-
-#=== Not used yet ===
-
-getFileDivs = (blab) ->
-	#test = $ "div[data-file]"
-	#console.log "test", test.attr "data-file"
-
-
-getBlabFromQuery = ->
-	query = location.search.slice(1)
-	return null unless query
-	h = query.split "&"
-	p = h?[0].split "="
-	blab = if p.length and p[0] is "blab" then p[1] else null
 
 
