@@ -830,12 +830,8 @@
       this.style.setAttribute("href", this.url);
       isSupported = this.style.hasOwnProperty("onload");
       console.log("********* css.onload " + (typeof this.style.onload));
-      this.style.onload = function() {
-        console.log("onload " + _this.url);
-        return _this.postLoad(callback);
-      };
       this.head.appendChild(this.style);
-      if (navigator.userAgent.indexOf("iPhone") !== -1 || navigator.userAgent.indexOf("iPad") !== -1) {
+      if (true) {
         return setTimeout((function() {
           return _this.postLoad(callback);
         }), 0);
