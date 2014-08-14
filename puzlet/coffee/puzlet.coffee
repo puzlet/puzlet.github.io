@@ -22,6 +22,7 @@ class Resource
 		# Default file load method.
 		# Uses jQuery.
 		success = (data) =>
+			console.log "success: "+@url
 			@content = data
 			@postLoad callback
 		document.title = @url if navigator.userAgent.indexOf("iPhone") isnt -1

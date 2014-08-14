@@ -696,6 +696,7 @@
         type = "text";
       }
       success = function(data) {
+        console.log("success: " + _this.url);
         _this.content = data;
         return _this.postLoad(callback);
       };
