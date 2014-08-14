@@ -829,7 +829,7 @@
       this.style.setAttribute("rel", "stylesheet");
       this.style.setAttribute("href", this.url);
       isSupported = this.style.hasOwnProperty("onload");
-      console.log("css.onload supported " + isSupported);
+      console.log("********* css.onload " + (typeof this.style.onload));
       this.style.onload = function() {
         console.log("onload " + _this.url);
         return _this.postLoad(callback);

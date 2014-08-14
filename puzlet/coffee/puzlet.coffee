@@ -99,7 +99,7 @@ class CssResourceLinked extends Resource
 		#@style.onload = ""
 		isSupported = @style.hasOwnProperty "onload" #typeof @style.onload is "function"
 		
-		console.log "css.onload supported "+isSupported
+		console.log "********* css.onload "+(typeof @style.onload)
 		
 		@style.onload = =>
 			console.log "onload "+@url
