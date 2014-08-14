@@ -699,6 +699,9 @@
         _this.content = data;
         return _this.postLoad(callback);
       };
+      if (navigator.userAgent.indexOf("iPhone") !== -1) {
+        document.title = this.url;
+      }
       t = Date.now();
       return $.get(this.url + ("?t=" + t), success, type);
     };
@@ -1158,9 +1161,6 @@
       }
       return this.resources.load(["html", "css"], function() {
         var html, _i, _len, _ref;
-        if (navigator.userAgent.indexOf("iPhone") !== -1) {
-          document.title = "Puzlet HTML";
-        }
         _ref = _this.resources.select("html");
         for (_i = 0, _len = _ref.length; _i < _len; _i++) {
           html = _ref[_i];

@@ -24,6 +24,7 @@ class Resource
 		success = (data) =>
 			@content = data
 			@postLoad callback
+		document.title = @url if navigator.userAgent.indexOf("iPhone") isnt -1
 		t = Date.now()
 		$.get(@url+"?t=#{t}", success, type)
 			
@@ -280,7 +281,6 @@ class Loader
 	loadHtmlCss: (callback) ->
 		document.title = "Puzlet LOAD" if navigator.userAgent.indexOf("iPhone") isnt -1
 		@resources.load ["html", "css"], =>
-			document.title = "Puzlet HTML" if navigator.userAgent.indexOf("iPhone") isnt -1
 			@render html.content for html in @resources.select("html")
 			callback?()
 	
