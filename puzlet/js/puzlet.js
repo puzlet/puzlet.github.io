@@ -696,22 +696,11 @@
         type = "text";
       }
       success = function(data) {
-        console.log("success: " + _this.url);
         _this.content = data;
         return _this.postLoad(callback);
       };
-      if (navigator.userAgent.indexOf("iPhone") !== -1) {
-        document.title = this.url;
-      }
       t = Date.now();
-      return $.get(this.url + ("?t=" + t), success, type).fail(function() {
-        return console.log("fail " + _this.url);
-      }).always(function() {
-        if (navigator.userAgent.indexOf("iPhone") !== -1) {
-          document.title = "get " + _this.url;
-        }
-        return console.log("get " + _this.url);
-      });
+      return $.get(this.url + ("?t=" + t), success, type);
     };
 
     Resource.prototype.postLoad = function(callback) {
@@ -822,23 +811,15 @@
     }
 
     CssResourceLinked.prototype.load = function(callback) {
-      var isSupported,
-        _this = this;
+      var _this = this;
       this.style = document.createElement("link");
       this.style.setAttribute("type", "text/css");
       this.style.setAttribute("rel", "stylesheet");
       this.style.setAttribute("href", this.url);
-      isSupported = this.style.hasOwnProperty("onload");
-      this.style.onload = function() {
+      setTimeout((function() {
         return _this.postLoad(callback);
-      };
-      this.head.appendChild(this.style);
-      console.log("********* css.onload " + (typeof this.style.onload));
-      if (navigator.userAgent.indexOf("iPhone") !== -1 || navigator.userAgent.indexOf("iPad") !== -1) {
-        return setTimeout((function() {
-          return _this.postLoad(callback);
-        }), 0);
-      }
+      }), 0);
+      return this.head.appendChild(this.style);
     };
 
     return CssResourceLinked;
@@ -881,7 +862,6 @@
       this.script.setAttribute("type", "text/javascript");
       this.head.appendChild(this.script);
       this.script.onload = function() {
-        console.log("onload " + _this.url);
         return _this.postLoad(callback);
       };
       t = Date.now();
@@ -1015,7 +995,6 @@
       resourcesToLoad = 0;
       resourceLoaded = function(resource) {
         resourcesToLoad--;
-        console.log("DEC LOAD: " + resourcesToLoad);
         if (resourcesToLoad === 0) {
           _this.appendToHead(filter);
           return typeof loaded === "function" ? loaded() : void 0;
@@ -1025,7 +1004,6 @@
       for (_i = 0, _len = resources.length; _i < _len; _i++) {
         resource = resources[_i];
         resourcesToLoad++;
-        console.log("INC LOAD: " + resourcesToLoad + " " + resource.url);
         _results.push(resource.load(function() {
           return resourceLoaded(resource);
         }));
@@ -1175,19 +1153,11 @@
 
     Loader.prototype.loadHtmlCss = function(callback) {
       var _this = this;
-      if (navigator.userAgent.indexOf("iPhone") !== -1) {
-        document.title = "Puzlet LOAD";
-      }
       return this.resources.load(["html", "css"], function() {
-        var html, _i, _j, _len, _len1, _ref, _ref1;
+        var html, _i, _len, _ref;
         _ref = _this.resources.select("html");
         for (_i = 0, _len = _ref.length; _i < _len; _i++) {
           html = _ref[_i];
-          console.log("html:" + html.content);
-        }
-        _ref1 = _this.resources.select("html");
-        for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
-          html = _ref1[_j];
           _this.render(html.content);
         }
         return typeof callback === "function" ? callback() : void 0;

@@ -22,19 +22,10 @@ class Resource
 		# Default file load method.
 		# Uses jQuery.
 		success = (data) =>
-			console.log "success: "+@url
 			@content = data
 			@postLoad callback
-		document.title = @url if navigator.userAgent.indexOf("iPhone") isnt -1
 		t = Date.now()
 		$.get(@url+"?t=#{t}", success, type)
-			.fail(=>
-				console.log "fail "+@url
-			)
-			.always(=>
-				document.title = "get "+@url if navigator.userAgent.indexOf("iPhone") isnt -1
-				console.log "get "+@url
-			) 
 			
 	postLoad: (callback) ->
 		@loaded = true
@@ -96,16 +87,13 @@ class CssResourceLinked extends Resource
 		@style.setAttribute "href", @url
 		#@style.setAttribute "data-url", @url
 		
-		#@style.onload = ""
-		isSupported = @style.hasOwnProperty "onload" #typeof @style.onload is "function"
+		# Old browsers (e.g., old iOS) don't support onload for CSS.
+		# And so we force postLoad even before CSS loaded.
+		# Forcing postLoad generally ok for CSS because won't affect downstream dependencies (unlike JS). 
+		setTimeout (=> @postLoad callback), 0
+		#@style.onload = => @postLoad callback
 		
-		@style.onload = => @postLoad callback
 		@head.appendChild @style
-		
-		console.log "********* css.onload "+(typeof @style.onload)
-		
-		if navigator.userAgent.indexOf("iPhone") isnt -1 or navigator.userAgent.indexOf("iPad") isnt -1
-			setTimeout (=> @postLoad callback), 0
 
 
 class JsResourceInline extends ResourceInline
@@ -125,9 +113,7 @@ class JsResourceLinked extends Resource
 		@script = document.createElement "script"
 		@script.setAttribute "type", "text/javascript"
 		@head.appendChild @script
-		@script.onload = =>
-			console.log "onload "+@url
-			@postLoad callback
+		@script.onload = => @postLoad callback
 		
 		t = Date.now()
 		@script.setAttribute "src", @url+"?t=#{t}"
@@ -206,13 +192,11 @@ class Resources
 		resourcesToLoad = 0
 		resourceLoaded = (resource) =>
 			resourcesToLoad--
-			console.log "DEC LOAD: "+resourcesToLoad
 			if resourcesToLoad is 0
 				@appendToHead filter  # Append to head if the appendToHead method exists for a resource, and if not aleady appended.
 				loaded?()
 		for resource in resources
 			resourcesToLoad++
-			console.log "INC LOAD: "+resourcesToLoad+" "+resource.url
 			resource.load -> resourceLoaded(resource)
 	
 	loadUnloaded: (loaded) ->
@@ -300,9 +284,7 @@ class Loader
 	# After all html/css loaded, render html via Wiky.
 	# html and blab css available as source to be edited in browser.
 	loadHtmlCss: (callback) ->
-		document.title = "Puzlet LOAD" if navigator.userAgent.indexOf("iPhone") isnt -1
 		@resources.load ["html", "css"], =>
-			console.log "html:"+html.content for html in @resources.select("html")
 			@render html.content for html in @resources.select("html")
 			callback?()
 	
@@ -464,7 +446,6 @@ init = ->
 	blab = window.location.pathname.split("/")[1]  # ZZZ more robust way?
 	return unless blab and blab isnt "puzlet.github.io"
 	page = new Page blab
-	#document.title = "Puzlet - Loading..."
 	render = (wikyHtml) -> page.render wikyHtml
 	ready = -> page.ready()
 	loader = new Loader blab, render, ready
