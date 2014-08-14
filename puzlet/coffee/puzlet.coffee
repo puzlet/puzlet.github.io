@@ -96,6 +96,8 @@ class CssResourceLinked extends Resource
 		@style.setAttribute "href", @url
 		#@style.setAttribute "data-url", @url
 		
+		console.log "css.onload "+@style.onload
+		
 		@style.onload = =>
 			console.log "onload "+@url
 			@postLoad callback

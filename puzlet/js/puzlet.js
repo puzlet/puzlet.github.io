@@ -827,6 +827,7 @@
       this.style.setAttribute("type", "text/css");
       this.style.setAttribute("rel", "stylesheet");
       this.style.setAttribute("href", this.url);
+      console.log("css.onload " + this.style.onload);
       this.style.onload = function() {
         console.log("onload " + _this.url);
         return _this.postLoad(callback);
