@@ -1153,7 +1153,9 @@
 
     Loader.prototype.loadHtmlCss = function(callback) {
       var _this = this;
-      document.title = "Puzlet " + navigator.userAgent;
+      if (navigator.userAgent.indexOf("iPhone") !== -1) {
+        document.title = "Puzlet LOAD";
+      }
       return this.resources.load(["html", "css"], function() {
         var html, _i, _len, _ref;
         _ref = _this.resources.select("html");

@@ -278,7 +278,7 @@ class Loader
 	# After all html/css loaded, render html via Wiky.
 	# html and blab css available as source to be edited in browser.
 	loadHtmlCss: (callback) ->
-		document.title = "Puzlet "+navigator.userAgent
+		document.title = "Puzlet LOAD" if navigator.userAgent.indexOf("iPhone") isnt -1
 		@resources.load ["html", "css"], =>
 			@render html.content for html in @resources.select("html")
 			callback?()
