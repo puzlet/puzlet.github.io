@@ -1167,11 +1167,16 @@
         document.title = "Puzlet LOAD";
       }
       return this.resources.load(["html", "css"], function() {
-        var html, _i, _len, _ref;
+        var html, _i, _j, _len, _len1, _ref, _ref1;
         _ref = _this.resources.select("html");
         for (_i = 0, _len = _ref.length; _i < _len; _i++) {
           html = _ref[_i];
-          console.log("html:" + html);
+          console.log("html:" + html.content);
+        }
+        _ref1 = _this.resources.select("html");
+        for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
+          html = _ref1[_j];
+          _this.render(html.content);
         }
         return typeof callback === "function" ? callback() : void 0;
       });
