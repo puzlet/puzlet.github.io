@@ -245,6 +245,7 @@ class Loader
 	
 	htmlResources: [
 		{url: "/puzlet/css/coffeelab.css"}
+		{url: "/puzlet/css/ace.css"}
 	]
 	
 	scriptResources: [
@@ -257,9 +258,20 @@ class Loader
 	# {url: "http://code.jquery.com/ui/1.9.2/themes/smoothness/jquery-ui.css"}
 	# {url: "http://code.jquery.com/ui/1.9.2/jquery-ui.min.js"}
 	
+	aceResources1: [
+		{url: "/puzlet/js/ace4/ace.js"}
+	]
+	
+	aceResources2: [
+		{url: "/puzlet/js/ace4/mode-coffee.js"}
+		{url: "/puzlet/js/ace4/mode-python.js"}
+		{url: "/puzlet/js/ace4/mode-matlab.js"}
+		{url: "/puzlet/js/ace4/mode-latex.js"}
+	]
+	
 	constructor: (@blab, @render, @done) ->
 		@resources = new Resources
-		@loadCoreResources => @loadResourceList => @loadHtmlCss => @loadScripts => @done()
+		@loadCoreResources => @loadResourceList => @loadHtmlCss => @loadScripts => @loadAce1 => @loadAce2 => @done()
 	
 	# Dynamically load and run jQuery and Wiky.
 	loadCoreResources: (callback) ->
@@ -302,6 +314,16 @@ class Loader
 			@compileCoffee()
 			callback?()
 			
+	loadAce1: (callback) ->
+		@resources.add @aceResources1
+		@resources.load "js", => callback?()
+	
+	loadAce2: (callback) ->
+		@resources.add @aceResources2
+		@resources.load "js", =>
+			#console.log "Ace loaded"
+			callback?()
+	
 	compileCoffee: ->
 		# ZZZ do external first; then blabs.
 		coffee.compile() for coffee in @resources.select "coffee"
@@ -320,16 +342,35 @@ class Page
 	
 	render: (wikyHtml) ->
 		@mainContainer() unless @container?
-		htmlNode = @htmlNode()
-		htmlNode.append Wiky.toHtml(wikyHtml)
+		#htmlNode = @htmlNode()
+		@container.append Wiky.toHtml(wikyHtml)
 		@pageTitle wikyHtml  # ZZZ should work only for first wikyHtml
 		
-	ready: ->
+	ready: (@resources) ->
 		new MathJaxProcessor  # ZZZ should be after all html rendered?
 		new FavIcon
+		@processCodeNodes()
 		new GithubRibbon @container, @blab
 		
+	processCodeNodes: ->
+		#console.log "resources", @resources
+		codeNodes = $ "div[data-file]"
+		findCode = (filename) =>
+			#console.log "filename", filename
+			for resource in @resources.resources
+				#console.log resource
+				url = resource.url
+				return resource if url is filename
+			return null
+		for n in codeNodes
+			node = $ n
+			filename = node.attr "data-file"
+			resource = findCode filename
+			new CodeNode node, resource if resource
+		initAce()  # ZZZ make method?
+		
 	htmlNode: ->
+		# ZZZ no longer used.
 		html = """
 		<div id="code_nodes" data-module-id="">
 		<div class="code_node_container" id="code_node_container_html" data-node-id="html" data-filename="main.html">
@@ -340,7 +381,7 @@ class Page
 		</div>
 		"""
 		@container.append html
-		$("#codeout_html")  # ZZZ improve so html constructed via jQuery?  or via template
+		$("#codeout_html")
 		
 	pageTitle: (wikyHtml) ->
 		matches = wikyHtml.match /[^|\n][=]{1,6}(.*?)[=]{1,6}[^a-z0-9][\n|$]/
@@ -438,6 +479,383 @@ class CoffeeEvaluator
 		js
 
 
+#---------- Ace ----------#
+
+class CodeNode
+	
+	constructor: (@container, @resource) ->
+		#console.log @container, @resource
+		@html()
+	
+	html: ->
+		# ZZZ temp
+		filename = @resource.url
+		id = "code_node_#{filename}"  # ZZZ may need to gen ids?
+		codeNodeFilename = filename
+		codeNodeLanguage = @resource.fileExt  # ZZZ extract from file
+		codeNodeTextAreaContent = @resource.content
+		html =
+		"""
+		<div class="code_node_container" id="code_node_container_#{id}" data-node-id="#{id}" data-filename="#{codeNodeFilename}">
+			<div class="code_node_editor_container">
+				<div class="code_node_editor" id="ace_editor_#{id}" data-lang="#{codeNodeLanguage}"></div>
+			</div>
+			<textarea class="code_node_textarea" id="code_node_textarea_#{id}" name="code[]" style="display: none" readonly>#{codeNodeTextAreaContent}</textarea>
+		</div>
+		
+		"""
+		@container.append html
+
+class AceModes
+	
+	constructor: ->
+		
+		@ace3 = false
+		
+		@names =
+			python: "ace/mode/python"
+			octave: if @ace3 then "ace/mode/octave" else "ace/mode/matlab"
+			latex: "ace/mode/latex"
+			html: "ace/mode/html"
+			javascript: "ace/mode/javascript"
+			css: "ace/mode/css"
+			coffee: "ace/mode/coffee"
+			
+		@modes = {}
+		for lang, mode of @names
+			if @ace3
+				Mode = require(mode).Mode
+				@modes[lang] = new Mode()
+			else
+				# ace4
+				@modes[lang] = mode
+			
+	
+	hasMode: (lang) -> @names.hasOwnProperty lang
+	
+	getMode: (lang) -> if @hasMode lang then @modes[lang] else null
+
+
+class CodeNodeSource
+	
+	constructor: (@codeNodeContainer, @idxInPage) ->
+		
+		@outer = @codeNodeContainer.find ".code_node_editor_container"  # ZZZ legacy
+		@container = @codeNodeContainer.find ".code_node_editor"
+		@textarea = @codeNodeContainer.find ".code_node_textarea"
+		
+		#@codeNodeContainer = @outer.parent()  # outer is editor container; its parent is code node container
+		#@codeNodeId = @codeNodeContainer.data "node-id"  # id for <code> node in markup
+		@id = @container.attr "id"  # ace editor id (for ace editor to be created)
+		@lang = @container.data "lang"
+		
+		@editor = ace.edit @id
+		@editor.setTheme "ace/theme/textmate"
+		mode = $pz.aceModes.getMode @lang if @lang
+		@session().setMode mode if mode
+		@session().setValue @textarea.val()
+		
+		@initRenderer()
+		@initFont()
+		@setHeight()
+		
+		@isEditable = false
+		@editor.setReadOnly true
+		@renderer.$gutterLayer.setShowLineNumbers false, 1
+		
+		@editor.setHighlightActiveLine false
+		
+		@customRendering()
+		
+		@inFocus = false
+		
+	initRenderer: ->
+		
+		@renderer = @editor.renderer
+		
+		# Initially no scroll bars
+		id = @id
+		@renderer.scrollBar.setWidth = (width) ->
+			# width and element are properties of renderer
+			width = this.width or 15 unless width?
+			$(this.element).css("width", width + "px")
+		
+		@renderer.scrollBar.setWidth 0
+		@renderer.scroller.style.overflowX = "hidden"
+		#@renderer.$gutter.style.minWidth = "32px";
+		#@renderer.$gutter.style.paddingLeft = "5px";
+		#@renderer.$gutter.style.paddingRight = "5px";
+		
+		# If Ace changes line height, update height of editor box.
+		# This is always called after body loaded because Ace uses polling approach for character size change.
+		@renderer.$textLayer.addEventListener "changeCharacterSize", => @setHeight()
+		
+		# Note: ace.js had to be edited directly to handle this. See comment "MVC" in ace.js.
+		@renderer.$gutterLayer.setShowLineNumbers = (show, start=1) ->
+			this.showLineNumbers = show
+			this.lineNumberStart = start
+		
+	initFont: ->
+		
+		# Code node editor is 720px wide
+		# Left margin (line numbers + code margin) is ~3 characters
+		# Menlo/DejaVu 11pt or Consolas 12pt char width is 9px
+		# 77 characters per line (but cutoff at ~75 if v.scrollbar margin)
+		# Total chars per editor width: 77+3=80 = 720/9
+		
+		# To experiment with fonts in puzlet page, use coffee node:
+		# puzletInit.register(=> $(".code_node_editor").css css)
+		
+		# We found that using font-face fonts from google meant that MathJax needed 90% scaling.
+		
+		@container.addClass "pz_ace_editor"
+		# Fonts do not work via CSS class.
+		css =
+			fontFamily: "Consolas, Menlo, DejaVu Sans Mono, Monaco, monospace" 
+			fontSize: "11pt" 
+			lineHeight: "150%"
+		char = $ "<span>"
+			css: css
+			html: "m"
+		$("body").append char
+		@charWidth = char.width()
+		char.remove()
+		@narrowFont = @charWidth<9
+		css.fontSize = "12pt" if @narrowFont  # For Consolas
+		@container.css css
+		
+	setHeight: ->
+		return if not @editor
+		lines = @code().split("\n")
+		numLines = lines.length
+		if numLines<20
+			lengths = (l.length for l in lines)
+			max = Math.max.apply(Math, lengths)
+			numLines++ if max>75
+		else
+			numLines++
+		lineHeight = @renderer.lineHeight
+		return if @numLines is numLines and @lineHeight is lineHeight
+		
+		@numLines = numLines
+		@lineHeight = lineHeight
+		heightStr = lineHeight * (if numLines>0 then numLines else 1) + "px"
+		@container.css("height", heightStr)
+		@outer.css("height", heightStr) # ZZZ Is this the best way?
+		@editor.resize()
+		
+	customRendering: ->
+		
+		@linkSelected = false
+		@comments = []
+		@functions = []
+		
+		# Override onFocus method.
+		onFocus = @editor.onFocus  # Current onFocus method.
+		@editor.onFocus = =>
+			@restoreCode()
+			# ZZZ issue here?
+			onFocus.call @editor
+			@renderer.showCursor() if @isEditable
+			@renderer.hideCursor() unless @isEditable
+			@inFocus = true
+			
+		onBlur = @editor.onBlur  # Current onBlur method.
+		@editor.onBlur = =>
+			#console.log "blur", @id
+			@renderer.hideCursor()
+			@render()
+			@inFocus = false
+			#onBlur.call @editor  # Why is this omitted?
+		
+		# Comment link navigation etc.
+		@editor.on "mouseup", (aceEvent) => @mouseUpHandler()
+		
+		# ZZZ temporary hack to render function links
+		#@registerLinks()
+		
+		$(document).on "mathjaxPreConfig", =>
+			window.MathJax.Hub.Register.StartupHook "MathMenu Ready", =>
+				@render()
+		
+		#@render()
+		
+	# Temporary until we support module importing (and exporting js) here.
+	# This should be done in module code.
+	#registerLinks: ->
+	#	link = (moduleId, section) -> {href: "/m/#{moduleId}"+(if section then "##{section}" else "")}
+	#	$pz.AceIdentifiers.registerLinks
+	#		irls: link "b007h"
+	#		l1eq_pd: link "b004d"
+	#		linsolve: link "b004d"
+	#		combnk: link "b0077"
+	#		perm_dftmtx: link "b007g", "permuted_dft_matrix"
+	#		chipping_matrix: link "b007g", "chipping_matrix"
+	#		acc_dump_matrix: link "b007g", "accumulate_and_dump_matrix"
+	#		amplitude_vector: link "b007g", "amplitude_vector"
+	#		spark: link "b0086"
+		
+	render: ->
+		
+		#console.log "render", @id
+		
+		return unless window.MathJax
+		return unless $blab.codeDecoration
+		
+		#console.log "render"
+		
+		commentNodes = @container.find ".ace_comment"
+		linkCallback = (target) => @linkSelected = target
+		@comments = (new CodeNodeComment($(node), linkCallback) for node in commentNodes)
+		comment.render() for comment in @comments
+		
+		#return  # Temp until support rendering of code node function links.
+		
+		# Identifiers/functions test.
+		identifiers = @container.find ".ace_identifier"
+		@functions = (new CodeNodeFunction($(i), l, linkCallback) for i in identifiers when l = AceIdentifiers.link($(i).text()))
+		f.render() for f in @functions
+		# Also should look for class="ace_entity ace_name ace_function"
+	
+	restoreCode: ->
+		comment.restore() for comment in @comments
+		f.restore() for f in @functions
+	
+	mouseUpHandler: ->
+		# Comment link navigation.
+		return unless @linkSelected
+		href = @linkSelected.attr "href"
+		target = @linkSelected.attr "target"
+		if target is "_self"
+			$(document.body).animate {scrollTop: $(href).offset().top}, 1000
+		else
+			window.open href, target ? "_blank"
+		@linkSelected = false
+		@editor.blur()
+		
+	focus: -> 
+		@editor.focus()  # ZZZ How is this different from base class focus?
+	
+	session: -> if @editor then @editor.getSession() else null
+	
+	code: -> @session().getValue()
+	
+	show: (show) ->
+		@outer.css("display", if show then "" else "none")
+	
+	showCode: (show) ->
+		@editor.show show
+		@editor.resize() if show
+
+
+class AceIdentifiers
+	
+	@links: {}
+	
+	@registerLinks: (links) ->
+		for identifier, link of links
+			AceIdentifiers.links[identifier] = link
+	
+	@link: (name) ->
+		#console.log "links", AceIdentifiers.links, name, AceIdentifiers.links["foo"], AceIdentifiers.links[name], AceIdentifiers.links.length
+		AceIdentifiers.links[name]
+
+
+class CodeNodeComment
+	
+	# ZZZ: potential bug - dangerous if render twice in row without restore?
+	
+	constructor: (@node, @linkCallback) ->
+		
+	render: ->
+		@originalText = @node.text()
+		#wikyOut = Wiky.toHtml(comment)
+		@replaceDiv()
+		@mathJax()
+		@processLinks()
+		
+	#saveOriginal: ->
+		# ZZZ shouldn't need to save in DOM?
+	#	c = "pz_original_comment"
+	#	@original = @node.siblings ".#{c}"
+	#	@original?.remove()
+	#	@original = $ "<div>"  # <span> ?
+	#		class: c
+	#		css: display: "none"
+	#		text: @originalText
+	#	@original.insertAfter @node
+		
+	replaceDiv: ->
+		pattern = String.fromCharCode(160)
+		re = new RegExp(pattern, "g")
+		comment = @originalText.replace(re, " ")
+		@node.empty()
+		content = $ "<div>", css: display: "inline-block"
+		content.append comment
+		@node.append content
+		
+	mathJax: ->
+		return unless node = @node[0]
+		MathJax.Hub.Queue(["PreProcess", MathJax.Hub, node])
+		MathJax.Hub.Queue(["Process", MathJax.Hub, node])
+	
+	processLinks: ->
+		links = @node.find "a"
+		return unless links.length
+		for link in links
+			$(link).mousedown (evt) => @linkCallback $(evt.target)
+			
+	restore: ->
+		if @originalText  # ZZZ call @original ?
+			@node.empty()
+			@node.text @originalText
+
+
+class CodeNodeFunction
+	# Very similar to above.  Have base class?
+	
+	constructor: (@node, @link, @linkCallback) ->
+		
+	render: ->
+		#console.log "f node", @node
+		@originalText = @node.text()
+		#wikyOut = Wiky.toHtml(comment)
+		@replaceDiv()
+#		@mathJax()  # ZZZ not needed?
+		@processLinks()
+		
+	replaceDiv: ->
+		#pattern = String.fromCharCode(160)  # needed?
+		#re = new RegExp(pattern, "g")
+		#txt = @originalText.replace(re, " ")
+		txt = @originalText
+		link = $ "<a>"
+			href: @link.href
+			target: @link.target
+			text: txt
+		@node.empty()
+		content = $ "<div>", css: display: "inline-block"
+		content.append link
+		@node.append content
+		
+	mathJax: ->
+		return unless node = @node[0]
+		MathJax.Hub.Queue(["PreProcess", MathJax.Hub, node])
+		MathJax.Hub.Queue(["Process", MathJax.Hub, node])
+	
+	processLinks: ->
+		links = @node.find "a"
+		return unless links.length
+		for link in links
+			$(link).mousedown (evt) => @linkCallback $(evt.target)
+			
+	restore: ->
+		if @originalText  # ZZZ call @original ?
+			@node.empty()
+			@node.text @originalText
+
+
+
 init = ->
 	window.$pz = {}
 	window.$blab = {}  # Exported interface.
@@ -446,9 +864,24 @@ init = ->
 	blab = window.location.pathname.split("/")[1]  # ZZZ more robust way?
 	return unless blab and blab isnt "puzlet.github.io"
 	page = new Page blab
-	render = (wikyHtml) -> page.render wikyHtml
-	ready = -> page.ready()
+	render = (wikyHtml) ->
+		page.render wikyHtml
+	ready = ->
+		page.ready loader.resources
+		
 	loader = new Loader blab, render, ready
+
+initAce = ->
+	$pz.AceIdentifiers = AceIdentifiers
+	$pz.aceModes = new AceModes
+	# Find all code nodes in page.
+	codeNodeContainers = $ ".code_node_container"
+	#console.log codeNodeContainers
+	$pz.codeNode = {}
+	for nodeContainer, idxInPage in codeNodeContainers
+		$nodeContainer = $(nodeContainer)
+		nodeId = $nodeContainer.data "node-id"
+		$pz.codeNode[nodeId] = new CodeNodeSource $nodeContainer, idxInPage
 
 init()
 
@@ -464,240 +897,10 @@ init()
 # If this code is edited (and ok/run button pressed), it replaces the previous code (and executes if it's a script).
 # Later, we'll support way of saving edited code to gist.
 
-getFileDivs = (blab) ->
-	#test = $ "div[data-file]"
-	#console.log "test", test.attr "data-file"
-
-
 getBlabFromQuery = ->
 	query = location.search.slice(1)
 	return null unless query
 	h = query.split "&"
 	p = h?[0].split "="
 	blab = if p.length and p[0] is "blab" then p[1] else null
-
-
-#=== OLD ===
-
-#oldLoader = new OLDLoader blab
-#oldLoader.loadCoreResources ->
-#	new OLDPage blab, oldLoader, -> console.log "Page loaded"
-
-class OLDResources
-	
-	# This class does not use jQuery for loading because it can be used to dynamically load jQuery itself.
-	
-	constructor: (@spec) ->
-		@head = document.getElementsByTagName('head')[0]  # Doesn't work with jQuery.
-		@resources = @spec.resources
-		@load()
-		
-	load: ->
-		
-		@resourcesToLoad = 0
-		
-		resources = @resources
-		unless resources
-			@spec.loaded()
-			return
-		
-		@wait = false
-		#console.log "resources", resources
-		for name, resource of resources
-			url = resource.url
-			#console.log "resource", resource, url
-			if resource.ajax
-				@addFile resource
-			else
-				if url.indexOf(".js") isnt -1
-					@addScript resource
-				else if url.indexOf(".css") isnt -1
-					@addCss resource
-				else
-					# Invalid resource.
-			
-		@spec.loaded() if not @wait and @resourcesToLoad is 0
-	
-	addScript: (resource) ->
-		# Return if "var" specified, and already exists.
-		if window[resource.var]
-			console.log "Already loaded", resource
-			return
-		url = resource.url
-		@wait = true
-		@resourcesToLoad++
-		t = Date.now()
-		js = document.createElement "script"
-		js.setAttribute "src", url+"?t=#{t}"
-		js.setAttribute "type", "text/javascript"
-		js.setAttribute "class", @spec.resourcesClass
-		js.onload = => @resourceLoaded resource
-		document.head.appendChild js
-		
-	addCss: (resource) ->
-		url = resource.url
-		@wait = true
-		@resourcesToLoad++
-		css = document.createElement "link"
-		css.setAttribute "href", url
-		css.setAttribute "rel", "stylesheet"
-		css.setAttribute "type", "text/css"
-		css.setAttribute "class", @spec.resourcesClass
-		css.onload = => @resourceLoaded resource
-		document.head.appendChild css
-		
-	addFile: (resource) ->
-		# Uses jQuery
-		url = resource.url
-		@wait = true
-		@resourcesToLoad++
-		$.get(url, (data) =>
-			console.log "^^^^^^^^old get"
-			resource.content = data
-			@resourceLoaded resource
-		)
-		
-	resourceLoaded: (resource) ->
-		console.log "Loaded", resource
-		@resourcesToLoad--
-		@spec.loaded(@resources) if @resourcesToLoad is 0
-		
-	removeAll: (resourcesClass)->
-		resources = $ ".#{resourcesClass}"
-		resources.remove() if resources.length
-
-
-class OLDLoader
-	
-	res =
-		blab:
-			# All have optional "source" property.  source: true means load source via ajax.
-			markup: {url: "main.html"}  # Always gets source; assumes Wiky initially
-			css: {url: "main.css"}  # optional: source: true
-			scripts:
-				main: {url: "main.js"}
-				foo: {url: "foo.coffee"}
-		libraries:
-			d3: {url: "d3"}
-			numeric: {url: ""}
-			flot: {url: ""}
-			x: {url: "/blabId/foo.js"}  # Based on path, blabs get loaded after other libraries.
-		# What about other library dependecies?
-		
-	constructor: (@blab) ->
-		
-	loadCoreResources: (callback) ->
-		spec =
-			resources:
-				jQuery: {url: "http://code.jquery.com/jquery-1.8.3.min.js", var: "jQuery"}
-				puzletCss: {url: "/puzlet/css/coffeelab.css"}
-				Wiky: {url: "/puzlet/js/wiky.js", var: "Wiky"}
-			resourcesClass: "core_resources"
-			loaded: -> callback()
-		new OLDResources spec
-		
-	loadBlabMarkup: (callback) ->
-		spec =
-			resources:
-				mainHtml: {url: "main.html", ajax: true}
-				mainCss: {url: "main.css"}  # No ajax initially
-			resourcesClass: "blab_markup_resources"
-			loaded: (resources) -> callback(resources)
-		new OLDResources spec
-		
-	loadBlabResourcesFile: (callback) ->
-		$.get("resources.json", (data) => callback data)
-	
-	loadExtras: (callback) ->
-		@loadBlabResourcesFile (res) ->
-			
-			spec =
-				resources:
-					numeric: {url: "/puzlet/js/numeric-1.2.6.js", var: "numeric"}
-					flot: {url: "/puzlet/js/jquery.flot.min.js"}  # var?
-					jQueryUiCss: {url: "http://code.jquery.com/ui/1.9.2/themes/smoothness/jquery-ui.css"}
-					jQueryUi: {url: "http://code.jquery.com/ui/1.9.2/jquery-ui.min.js"}
-				resourcesClass: "extra_resources"
-				loaded: -> callback()
-			
-			# Append resources specified by resources.json in blab.
-			spec.resources["extra"+idx] = {url: r} for r, idx in res  # ZZZ idx is temp
-			
-			new OLDResources spec
-		
-	loadMainJs: (callback) ->
-		spec =
-			resources:
-				mainJs: {url: "main.js"}
-			resourcesClass: "main_resources"
-			loaded: -> callback()
-		new OLDResources spec
-		
-	#loadWiky: (callback) ->
-	#	$.get("main.html", (data) => callback data)
-		
-	loadFavIcon: ->
-		icon = $ "<link>"
-			rel: "icon"
-			type: "image/png"
-			href: "/puzlet/images/favicon.ico"
-		$(document.head).append icon
-	
-
-
-class OLDPage
-	
-	# ZZZ what if already rendered?
-	
-	constructor: (@blab, @loader, @callback) ->
-		@loader.loadBlabMarkup (resources) =>
-			console.log "blab resources", resources.mainHtml
-			wiky = resources.mainHtml.content
-			@render wiky
-		
-	render: (wiky) ->
-		Array.prototype.dot = (y) -> numeric.dot(+this, y)  # ZZZ temp
-		container = $ "<div>"
-			id: "blab_container"
-		container.hide()
-		$(document.body).append container
-		@htmlNode container
-		$("#codeout_html").append Wiky.toHtml(wiky)
-		container.show()
-		@pageTitle wiky
-		new MathJaxProcessor
-		@loader.loadExtras =>
-			@loader.loadMainJs =>
-				@loader.loadFavIcon()
-				@githubForkRibbon @blab
-				@callback()
-	
-	htmlNode: (container) ->
-		html = """
-		<div id="code_nodes" data-module-id="">
-		<div class="code_node_container" id="code_node_container_html" data-node-id="html" data-filename="main.html">
-			<div class="code_node_output_container" id="output_html">
-				<div class="code_node_html_output" id="codeout_html"></div>
-			</div>
-		</div>
-		</div>
-		"""
-		container.append html
-	
-	
-	pageTitle: (wiky) ->
-		matches = wiky.match /[^|\n][=]{1,6}(.*?)[=]{1,6}[^a-z0-9][\n|$]/
-		document.title = matches[1] if matches?.length
-	
-	githubForkRibbon: ->
-		src = "https://camo.githubusercontent.com/365986a132ccd6a44c23a9169022c0b5c890c387/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f7265645f6161303030302e706e67"
-		html = """
-			<a href="https://github.com/puzlet/#{@blab}" id="ribbon" style="opacity:0.2">
-			<img style="position: absolute; top: 0; right: 0; border: 0;" src="#{src}" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_red_aa0000.png"></a>
-		"""
-		$("#blab_container").append(html)
-		setTimeout (-> $("#ribbon").fadeTo(400, 1).fadeTo(400, 0.2)), 2000
-
-
-
 
