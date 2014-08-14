@@ -1387,7 +1387,7 @@
     if (!(blab && blab !== "puzlet.github.io")) {
       return;
     }
-    page = new Page;
+    page = new Page(blab);
     render = function(wikyHtml) {
       return page.render(wikyHtml);
     };

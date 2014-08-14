@@ -439,7 +439,7 @@ init = ->
 	window.console.log = (->) unless window.console.log?
 	blab = window.location.pathname.split("/")[1]  # ZZZ more robust way?
 	return unless blab and blab isnt "puzlet.github.io"
-	page = new Page
+	page = new Page blab
 	render = (wikyHtml) -> page.render wikyHtml
 	ready = -> page.ready()
 	loader = new Loader blab, render, ready
