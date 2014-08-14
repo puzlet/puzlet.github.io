@@ -195,12 +195,13 @@ class Resources
 		resourcesToLoad = 0
 		resourceLoaded = (resource) =>
 			resourcesToLoad--
-			console.log "TO LOAD: "+resourcesToLoad+" "+resource.url
+			console.log "DEC LOAD: "+resourcesToLoad
 			if resourcesToLoad is 0
 				@appendToHead filter  # Append to head if the appendToHead method exists for a resource, and if not aleady appended.
 				loaded?()
 		for resource in resources
 			resourcesToLoad++
+			console.log "INC LOAD: "+resourcesToLoad+" "+resource.url
 			resource.load -> resourceLoaded(resource)
 	
 	loadUnloaded: (loaded) ->

@@ -1006,7 +1006,7 @@
       resourcesToLoad = 0;
       resourceLoaded = function(resource) {
         resourcesToLoad--;
-        console.log("TO LOAD: " + resourcesToLoad + " " + resource.url);
+        console.log("DEC LOAD: " + resourcesToLoad);
         if (resourcesToLoad === 0) {
           _this.appendToHead(filter);
           return typeof loaded === "function" ? loaded() : void 0;
@@ -1016,6 +1016,7 @@
       for (_i = 0, _len = resources.length; _i < _len; _i++) {
         resource = resources[_i];
         resourcesToLoad++;
+        console.log("INC LOAD: " + resourcesToLoad + " " + resource.url);
         _results.push(resource.load(function() {
           return resourceLoaded(resource);
         }));
