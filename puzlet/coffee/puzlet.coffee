@@ -288,7 +288,7 @@ class Loader
 	loadHtmlCss: (callback) ->
 		document.title = "Puzlet LOAD" if navigator.userAgent.indexOf("iPhone") isnt -1
 		@resources.load ["html", "css"], =>
-			@render html.content for html in @resources.select("html")
+			#@render html.content for html in @resources.select("html")
 			callback?()
 	
 	# Async load js and coffee:
