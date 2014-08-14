@@ -116,7 +116,9 @@ class JsResourceLinked extends Resource
 		@script.onload = => @postLoad callback
 		
 		t = Date.now()
-		@script.setAttribute "src", @url+"?t=#{t}"
+		# ZZZ need better way to handle caching
+		cache = @url.indexOf("/puzlet/js") isnt -1 or @url.indexOf("http://") isnt -1
+		@script.setAttribute "src", @url+(if cache then "" else "?t=#{t}")
 		#@script.setAttribute "data-url", @url
 
 

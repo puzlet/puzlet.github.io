@@ -851,7 +851,7 @@
     }
 
     JsResourceLinked.prototype.load = function(callback) {
-      var t,
+      var cache, t,
         _this = this;
       if (this["var"] && window[this["var"]]) {
         console.log("Already loaded", this.url);
@@ -865,7 +865,8 @@
         return _this.postLoad(callback);
       };
       t = Date.now();
-      return this.script.setAttribute("src", this.url + ("?t=" + t));
+      cache = this.url.indexOf("/puzlet/js") !== -1 || this.url.indexOf("http://") !== -1;
+      return this.script.setAttribute("src", this.url + (cache ? "" : "?t=" + t));
     };
 
     return JsResourceLinked;
