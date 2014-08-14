@@ -703,7 +703,9 @@
         document.title = this.url;
       }
       t = Date.now();
-      return $.get(this.url + ("?t=" + t), success, type).always(function() {
+      return $.get(this.url + ("?t=" + t), success, type).fail(function() {
+        return console.log("fail " + _this.url);
+      }).always(function() {
         if (navigator.userAgent.indexOf("iPhone") !== -1) {
           document.title = "get " + _this.url;
         }

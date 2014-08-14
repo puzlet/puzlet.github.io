@@ -27,6 +27,9 @@ class Resource
 		document.title = @url if navigator.userAgent.indexOf("iPhone") isnt -1
 		t = Date.now()
 		$.get(@url+"?t=#{t}", success, type)
+			.fail(=>
+				console.log "fail "+@url
+			)
 			.always(=>
 				document.title = "get "+@url if navigator.userAgent.indexOf("iPhone") isnt -1
 				console.log "get "+@url
