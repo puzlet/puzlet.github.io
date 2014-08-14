@@ -95,7 +95,9 @@ class CssResourceLinked extends Resource
 		@style.setAttribute "rel", "stylesheet"
 		@style.setAttribute "href", @url
 		#@style.setAttribute "data-url", @url
-		@style.onload = => @postLoad callback
+		@style.onload = =>
+			console.log "onload "+@url
+			@postLoad callback
 		@head.appendChild @style
 
 
@@ -116,7 +118,9 @@ class JsResourceLinked extends Resource
 		@script = document.createElement "script"
 		@script.setAttribute "type", "text/javascript"
 		@head.appendChild @script
-		@script.onload = => @postLoad callback
+		@script.onload = =>
+			console.log "onload "+@url
+			@postLoad callback
 		
 		t = Date.now()
 		@script.setAttribute "src", @url+"?t=#{t}"

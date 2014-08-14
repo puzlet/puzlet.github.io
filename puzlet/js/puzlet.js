@@ -828,6 +828,7 @@
       this.style.setAttribute("rel", "stylesheet");
       this.style.setAttribute("href", this.url);
       this.style.onload = function() {
+        console.log("onload " + _this.url);
         return _this.postLoad(callback);
       };
       return this.head.appendChild(this.style);
@@ -873,6 +874,7 @@
       this.script.setAttribute("type", "text/javascript");
       this.head.appendChild(this.script);
       this.script.onload = function() {
+        console.log("onload " + _this.url);
         return _this.postLoad(callback);
       };
       t = Date.now();
