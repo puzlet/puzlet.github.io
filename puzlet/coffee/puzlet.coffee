@@ -99,14 +99,12 @@ class CssResourceLinked extends Resource
 		#@style.onload = ""
 		isSupported = @style.hasOwnProperty "onload" #typeof @style.onload is "function"
 		
-		console.log "********* css.onload "+(typeof @style.onload)
-		
-		#@style.onload = =>
-		#	console.log "onload "+@url
-		#	@postLoad callback
+		@style.onload = => @postLoad callback
 		@head.appendChild @style
 		
-		if true #navigator.userAgent.indexOf("iPhone") isnt -1 or navigator.userAgent.indexOf("iPad") isnt -1
+		console.log "********* css.onload "+(typeof @style.onload)
+		
+		if navigator.userAgent.indexOf("iPhone") isnt -1 or navigator.userAgent.indexOf("iPad") isnt -1
 			setTimeout (=> @postLoad callback), 0
 
 
