@@ -703,7 +703,12 @@
         document.title = this.url;
       }
       t = Date.now();
-      return $.get(this.url + ("?t=" + t), success, type);
+      return $.get(this.url + ("?t=" + t), success, type).always(function() {
+        if (navigator.userAgent.indexOf("iPhone") !== -1) {
+          document.title = "get " + _this.url;
+        }
+        return console.log("get", _this.url);
+      });
     };
 
     Resource.prototype.postLoad = function(callback) {
