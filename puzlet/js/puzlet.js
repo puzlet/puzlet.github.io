@@ -831,7 +831,10 @@
         console.log("onload " + _this.url);
         return _this.postLoad(callback);
       };
-      return this.head.appendChild(this.style);
+      this.head.appendChild(this.style);
+      if (navigator.userAgent.indexOf("iPhone") !== -1) {
+        return this.postLoad(callback);
+      }
     };
 
     return CssResourceLinked;

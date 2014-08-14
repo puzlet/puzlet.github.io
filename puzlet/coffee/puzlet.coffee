@@ -95,10 +95,14 @@ class CssResourceLinked extends Resource
 		@style.setAttribute "rel", "stylesheet"
 		@style.setAttribute "href", @url
 		#@style.setAttribute "data-url", @url
+		
 		@style.onload = =>
 			console.log "onload "+@url
 			@postLoad callback
 		@head.appendChild @style
+		
+		if navigator.userAgent.indexOf("iPhone") isnt -1
+			@postLoad callback
 
 
 class JsResourceInline extends ResourceInline
