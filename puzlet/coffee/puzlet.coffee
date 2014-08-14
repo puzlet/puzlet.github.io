@@ -102,7 +102,7 @@ class CssResourceLinked extends Resource
 		@head.appendChild @style
 		
 		if navigator.userAgent.indexOf("iPhone") isnt -1 or navigator.userAgent.indexOf("iPad") isnt -1
-			setTimeout (=> @postLoad callback), 2000
+			setTimeout (=> @postLoad callback), 0
 
 
 class JsResourceInline extends ResourceInline

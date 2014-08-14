@@ -835,7 +835,7 @@
       if (navigator.userAgent.indexOf("iPhone") !== -1 || navigator.userAgent.indexOf("iPad") !== -1) {
         return setTimeout((function() {
           return _this.postLoad(callback);
-        }), 2000);
+        }), 0);
       }
     };
 
