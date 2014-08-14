@@ -833,7 +833,9 @@
       };
       this.head.appendChild(this.style);
       if (navigator.userAgent.indexOf("iPhone") !== -1) {
-        return this.postLoad(callback);
+        return setTimeout((function() {
+          return _this.postLoad(callback);
+        }), 2000);
       }
     };
 
