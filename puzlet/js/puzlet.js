@@ -1388,6 +1388,7 @@
       return;
     }
     page = new Page(blab);
+    document.title = "Puzlet - Loading...";
     render = function(wikyHtml) {
       return page.render(wikyHtml);
     };
