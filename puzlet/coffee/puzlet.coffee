@@ -278,6 +278,7 @@ class Loader
 	# After all html/css loaded, render html via Wiky.
 	# html and blab css available as source to be edited in browser.
 	loadHtmlCss: (callback) ->
+		document.title = "Puzlet Loading..."
 		@resources.load ["html", "css"], =>
 			@render html.content for html in @resources.select("html")
 			callback?()
@@ -440,7 +441,7 @@ init = ->
 	blab = window.location.pathname.split("/")[1]  # ZZZ more robust way?
 	return unless blab and blab isnt "puzlet.github.io"
 	page = new Page blab
-	document.title = "Puzlet - Loading..."
+	#document.title = "Puzlet - Loading..."
 	render = (wikyHtml) -> page.render wikyHtml
 	ready = -> page.ready()
 	loader = new Loader blab, render, ready
