@@ -1004,9 +1004,9 @@
         return;
       }
       resourcesToLoad = 0;
-      resourceLoaded = function() {
+      resourceLoaded = function(resource) {
         resourcesToLoad--;
-        console.log("TO LOAD: " + resourcesToLoad);
+        console.log("TO LOAD: " + resourcesToLoad + " " + resource.url);
         if (resourcesToLoad === 0) {
           _this.appendToHead(filter);
           return typeof loaded === "function" ? loaded() : void 0;
@@ -1017,7 +1017,7 @@
         resource = resources[_i];
         resourcesToLoad++;
         _results.push(resource.load(function() {
-          return resourceLoaded();
+          return resourceLoaded(resource);
         }));
       }
       return _results;

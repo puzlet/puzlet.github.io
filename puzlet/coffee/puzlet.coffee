@@ -193,15 +193,15 @@ class Resources
 			loaded?()
 			return
 		resourcesToLoad = 0
-		resourceLoaded = =>
+		resourceLoaded = (resource) =>
 			resourcesToLoad--
-			console.log "TO LOAD: "+resourcesToLoad
+			console.log "TO LOAD: "+resourcesToLoad+" "+resource.url
 			if resourcesToLoad is 0
 				@appendToHead filter  # Append to head if the appendToHead method exists for a resource, and if not aleady appended.
 				loaded?()
 		for resource in resources
 			resourcesToLoad++
-			resource.load -> resourceLoaded()
+			resource.load -> resourceLoaded(resource)
 	
 	loadUnloaded: (loaded) ->
 		# Loads all unloaded resources.
