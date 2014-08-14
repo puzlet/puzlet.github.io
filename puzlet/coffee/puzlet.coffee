@@ -280,6 +280,7 @@ class Loader
 	loadHtmlCss: (callback) ->
 		document.title = "Puzlet LOAD" if navigator.userAgent.indexOf("iPhone") isnt -1
 		@resources.load ["html", "css"], =>
+			document.title = "Puzlet HTML" if navigator.userAgent.indexOf("iPhone") isnt -1
 			@render html.content for html in @resources.select("html")
 			callback?()
 	
