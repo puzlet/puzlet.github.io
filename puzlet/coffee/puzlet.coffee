@@ -194,6 +194,7 @@ class Resources
 		resourcesToLoad = 0
 		resourceLoaded = =>
 			resourcesToLoad--
+			console.log "TO LOAD: "+resourcesToLoad
 			if resourcesToLoad is 0
 				@appendToHead filter  # Append to head if the appendToHead method exists for a resource, and if not aleady appended.
 				loaded?()

@@ -1005,6 +1005,7 @@
       resourcesToLoad = 0;
       resourceLoaded = function() {
         resourcesToLoad--;
+        console.log("TO LOAD: " + resourcesToLoad);
         if (resourcesToLoad === 0) {
           _this.appendToHead(filter);
           return typeof loaded === "function" ? loaded() : void 0;
