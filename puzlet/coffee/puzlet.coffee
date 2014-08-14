@@ -29,7 +29,7 @@ class Resource
 		$.get(@url+"?t=#{t}", success, type)
 			.always(=>
 				document.title = "get "+@url if navigator.userAgent.indexOf("iPhone") isnt -1
-				console.log "get", @url
+				console.log "get "+@url
 			) 
 			
 	postLoad: (callback) ->

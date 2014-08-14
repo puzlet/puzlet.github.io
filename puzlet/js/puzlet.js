@@ -707,7 +707,7 @@
         if (navigator.userAgent.indexOf("iPhone") !== -1) {
           document.title = "get " + _this.url;
         }
-        return console.log("get", _this.url);
+        return console.log("get " + _this.url);
       });
     };
 
