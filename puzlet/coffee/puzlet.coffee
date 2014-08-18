@@ -51,7 +51,6 @@ class Resource
 
 class HtmlResource extends Resource
 
-
 class ResourceInline extends Resource
 	
 	# Abstract class.
@@ -162,6 +161,8 @@ class Resources
 		js: {blab: JsResourceInline, ext: JsResourceLinked}
 		coffee: {blab: CoffeeResource, ext: CoffeeResource}
 		json: {blab: JsonResource, ext: JsonResource}
+		py: {blab: Resource, ext: Resource}
+		m: {blab: Resource, ext: Resource}
 	
 	constructor: ->
 		@resources = []
@@ -247,7 +248,6 @@ class Loader
 	
 	htmlResources: [
 		{url: "/puzlet/css/coffeelab.css"}
-		{url: "/puzlet/css/ace.css"}
 	]
 	
 	scriptResources: [
@@ -265,10 +265,14 @@ class Loader
 	]
 	
 	aceResources2: [
+		{url: "/puzlet/js/ace4/mode-html.js"}
+		{url: "/puzlet/js/ace4/mode-css.js"}
+		{url: "/puzlet/js/ace4/mode-javascript.js"}
 		{url: "/puzlet/js/ace4/mode-coffee.js"}
 		{url: "/puzlet/js/ace4/mode-python.js"}
 		{url: "/puzlet/js/ace4/mode-matlab.js"}
 		{url: "/puzlet/js/ace4/mode-latex.js"}
+		{url: "/puzlet/css/ace.css"}
 	]
 	
 	constructor: (@blab, @render, @done) ->
@@ -285,7 +289,7 @@ class Loader
 	# Prepend /puzlet/css/puzlet.css to list; prepend script resources (CoffeeScript compiler; math).
 	loadResourceList: (callback) ->
 		list = @resources.add @resourcesList
-		@resources.loadUnloaded => 
+		@resources.loadUnloaded =>
 			@resources.add @htmlResources
 			@resources.add @scriptResources
 			@resources.add({url: url} for url in list.content)
@@ -302,9 +306,10 @@ class Loader
 			@render html.content for html in @resources.select("html")
 			callback?()
 	
-	# Async load js and coffee:
+	# Async load js and coffee; and py/m:
 	#   * external js via <script>; auto-appended to dom, and run.
 	#   * blab js and all coffee via ajax; auto-appended to dom (inline) after *all* js/coffee loaded.
+	#   * py/m via ajax; no action loading.
 	# After all scripts loaded: 
 	#   * compile each coffee file, with post-js processing if not #!vanilla.
 	#   * append JS (blab js or compiled coffee) to dom: external js (from coffee) first, then current blab js.
@@ -312,7 +317,7 @@ class Loader
 	# (Loading scripts after HTML/CSS improves html rendering speed.)
 	# Note: for large JS file (even 3rd party), put in repo without gh-pages (web page).
 	loadScripts: (callback) ->
-		@resources.load ["js", "coffee"], =>
+		@resources.load ["js", "coffee", "py", "m"], =>
 			@compileCoffee()
 			callback?()
 			
@@ -322,7 +327,7 @@ class Loader
 	
 	loadAce2: (callback) ->
 		@resources.add @aceResources2
-		@resources.load "js", =>
+		@resources.load ["js", "css"], =>
 			#console.log "Ace loaded"
 			callback?()
 	
@@ -357,6 +362,7 @@ class Page
 	processCodeNodes: ->
 		#console.log "resources", @resources
 		codeNodes = $ "div[data-file]"
+		# ZZZ should this be a method of resources?
 		findCode = (filename) =>
 			#console.log "filename", filename
 			for resource in @resources.resources
@@ -485,16 +491,26 @@ class CoffeeEvaluator
 
 class CodeNode
 	
+	language:
+		html: "html"
+		css: "css"
+		js: "javascript"
+		coffee: "coffee"
+		json: "json"
+		py: "python"
+		m: "octave"
+	
 	constructor: (@container, @resource) ->
 		#console.log @container, @resource
 		@html()
 	
 	html: ->
 		# ZZZ temp
+		# ZZZ is textarea still needed?
 		filename = @resource.url
 		id = "code_node_#{filename}"  # ZZZ may need to gen ids?
 		codeNodeFilename = filename
-		codeNodeLanguage = @resource.fileExt  # ZZZ extract from file
+		codeNodeLanguage = @language[@resource.fileExt] # ZZZ extract from file
 		codeNodeTextAreaContent = @resource.content
 		html =
 		"""
@@ -507,6 +523,7 @@ class CodeNode
 		
 		"""
 		@container.append html
+
 
 class AceModes
 	
@@ -568,6 +585,7 @@ class CodeNodeSource
 		@editor.setHighlightActiveLine false
 		
 		@customRendering()
+		@customRendering2()  # ZZZ Temp
 		
 		@inFocus = false
 		
@@ -681,21 +699,24 @@ class CodeNodeSource
 				@render()
 		
 		#@render()
+	
+	customRendering2: ->
 		
-	# Temporary until we support module importing (and exporting js) here.
-	# This should be done in module code.
-	#registerLinks: ->
-	#	link = (moduleId, section) -> {href: "/m/#{moduleId}"+(if section then "##{section}" else "")}
-	#	$pz.AceIdentifiers.registerLinks
-	#		irls: link "b007h"
-	#		l1eq_pd: link "b004d"
-	#		linsolve: link "b004d"
-	#		combnk: link "b0077"
-	#		perm_dftmtx: link "b007g", "permuted_dft_matrix"
-	#		chipping_matrix: link "b007g", "chipping_matrix"
-	#		acc_dump_matrix: link "b007g", "accumulate_and_dump_matrix"
-	#		amplitude_vector: link "b007g", "amplitude_vector"
-	#		spark: link "b0086"
+		#@setEditable (@spec.editable ? true)
+		@editor.setShowFoldWidgets false
+		
+		@renderer.$gutterLayer.setShowLineNumbers true, 1
+		
+		# Override onFocus method.
+		onFocus = @editor.onFocus  # Current onFocus method.
+		@editor.onFocus = =>
+			@editor.setHighlightActiveLine true #if source.isEditable
+			onFocus.call @editor
+			
+		onBlur = @editor.onBlur  # Current onBlur method.
+		@editor.onBlur = =>
+			@editor.setHighlightActiveLine false
+			onBlur.call @editor
 		
 	render: ->
 		
@@ -857,7 +878,6 @@ class CodeNodeFunction
 			@node.text @originalText
 
 
-
 init = ->
 	window.$pz = {}
 	window.$blab = {}  # Exported interface.
@@ -883,7 +903,7 @@ initAce = ->
 	for nodeContainer, idxInPage in codeNodeContainers
 		$nodeContainer = $(nodeContainer)
 		nodeId = $nodeContainer.data "node-id"
-		$pz.codeNode[nodeId] = new CodeNodeSource $nodeContainer, idxInPage
+		source = $pz.codeNode[nodeId] = new CodeNodeSource $nodeContainer, idxInPage
 
 init()
 

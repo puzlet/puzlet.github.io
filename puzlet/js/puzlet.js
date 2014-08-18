@@ -941,6 +941,14 @@
       json: {
         blab: JsonResource,
         ext: JsonResource
+      },
+      py: {
+        blab: Resource,
+        ext: Resource
+      },
+      m: {
+        blab: Resource,
+        ext: Resource
       }
     };
 
@@ -1091,8 +1099,6 @@
     Loader.prototype.htmlResources = [
       {
         url: "/puzlet/css/coffeelab.css"
-      }, {
-        url: "/puzlet/css/ace.css"
       }
     ];
 
@@ -1116,6 +1122,12 @@
 
     Loader.prototype.aceResources2 = [
       {
+        url: "/puzlet/js/ace4/mode-html.js"
+      }, {
+        url: "/puzlet/js/ace4/mode-css.js"
+      }, {
+        url: "/puzlet/js/ace4/mode-javascript.js"
+      }, {
         url: "/puzlet/js/ace4/mode-coffee.js"
       }, {
         url: "/puzlet/js/ace4/mode-python.js"
@@ -1123,6 +1135,8 @@
         url: "/puzlet/js/ace4/mode-matlab.js"
       }, {
         url: "/puzlet/js/ace4/mode-latex.js"
+      }, {
+        url: "/puzlet/css/ace.css"
       }
     ];
 
@@ -1191,7 +1205,7 @@
 
     Loader.prototype.loadScripts = function(callback) {
       var _this = this;
-      return this.resources.load(["js", "coffee"], function() {
+      return this.resources.load(["js", "coffee", "py", "m"], function() {
         _this.compileCoffee();
         return typeof callback === "function" ? callback() : void 0;
       });
@@ -1208,7 +1222,7 @@
     Loader.prototype.loadAce2 = function(callback) {
       var _this = this;
       this.resources.add(this.aceResources2);
-      return this.resources.load("js", function() {
+      return this.resources.load(["js", "css"], function() {
         return typeof callback === "function" ? callback() : void 0;
       });
     };
@@ -1444,6 +1458,16 @@
 
   CodeNode = (function() {
 
+    CodeNode.prototype.language = {
+      html: "html",
+      css: "css",
+      js: "javascript",
+      coffee: "coffee",
+      json: "json",
+      py: "python",
+      m: "octave"
+    };
+
     function CodeNode(container, resource) {
       this.container = container;
       this.resource = resource;
@@ -1455,7 +1479,7 @@
       filename = this.resource.url;
       id = "code_node_" + filename;
       codeNodeFilename = filename;
-      codeNodeLanguage = this.resource.fileExt;
+      codeNodeLanguage = this.language[this.resource.fileExt];
       codeNodeTextAreaContent = this.resource.content;
       html = "<div class=\"code_node_container\" id=\"code_node_container_" + id + "\" data-node-id=\"" + id + "\" data-filename=\"" + codeNodeFilename + "\">\n	<div class=\"code_node_editor_container\">\n		<div class=\"code_node_editor\" id=\"ace_editor_" + id + "\" data-lang=\"" + codeNodeLanguage + "\"></div>\n	</div>\n	<textarea class=\"code_node_textarea\" id=\"code_node_textarea_" + id + "\" name=\"code[]\" style=\"display: none\" readonly>" + codeNodeTextAreaContent + "</textarea>\n</div>\n";
       return this.container.append(html);
@@ -1536,6 +1560,7 @@
       this.renderer.$gutterLayer.setShowLineNumbers(false, 1);
       this.editor.setHighlightActiveLine(false);
       this.customRendering();
+      this.customRendering2();
       this.inFocus = false;
     }
 
@@ -1654,6 +1679,23 @@
           return _this.render();
         });
       });
+    };
+
+    CodeNodeSource.prototype.customRendering2 = function() {
+      var onBlur, onFocus,
+        _this = this;
+      this.editor.setShowFoldWidgets(false);
+      this.renderer.$gutterLayer.setShowLineNumbers(true, 1);
+      onFocus = this.editor.onFocus;
+      this.editor.onFocus = function() {
+        _this.editor.setHighlightActiveLine(true);
+        return onFocus.call(_this.editor);
+      };
+      onBlur = this.editor.onBlur;
+      return this.editor.onBlur = function() {
+        _this.editor.setHighlightActiveLine(false);
+        return onBlur.call(_this.editor);
+      };
     };
 
     CodeNodeSource.prototype.render = function() {
@@ -1953,7 +1995,7 @@
   };
 
   initAce = function() {
-    var $nodeContainer, codeNodeContainers, idxInPage, nodeContainer, nodeId, _i, _len, _results;
+    var $nodeContainer, codeNodeContainers, idxInPage, nodeContainer, nodeId, source, _i, _len, _results;
     $pz.AceIdentifiers = AceIdentifiers;
     $pz.aceModes = new AceModes;
     codeNodeContainers = $(".code_node_container");
@@ -1963,7 +2005,7 @@
       nodeContainer = codeNodeContainers[idxInPage];
       $nodeContainer = $(nodeContainer);
       nodeId = $nodeContainer.data("node-id");
-      _results.push($pz.codeNode[nodeId] = new CodeNodeSource($nodeContainer, idxInPage));
+      _results.push(source = $pz.codeNode[nodeId] = new CodeNodeSource($nodeContainer, idxInPage));
     }
     return _results;
   };
