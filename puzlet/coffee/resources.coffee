@@ -49,17 +49,26 @@ class ResourceInline extends Resource
 	
 	load: (callback) ->
 		super =>
-			@element = $ "<#{@tag}>",
-				type: @mime
-				"data-url": @url
-			@element.text @content
+			@createElement()
+			#@element.text @content
 			callback?()
 			
+	createElement: ->
+		@element = $ "<#{@tag}>",
+			type: @mime
+			"data-url": @url
+		@element.text @content
+	
 	inDom: ->
 		$("#{@tag}[data-url='#{@url}']").length
 		
 	appendToHead: ->
 		@head.appendChild @element[0] unless @inDom()
+		
+	update: (@content) ->
+		@head.removeChild @element[0]
+		@createElement()
+		@appendToHead()
 	
 class CssResourceInline extends ResourceInline
 	
@@ -116,16 +125,24 @@ class CoffeeResource extends Resource
 	
 	load: (callback) ->
 		super =>
-			@element = $ "<script>",
-				type: "text/javascript"
-				"data-url": @url
+			@createElement()
 			callback?()
+			
+	createElement: ->
+		@element = $ "<script>",
+			type: "text/javascript"
+			"data-url": @url
 	
 	compile: ->
-		# Alternative: CoffeeEvaluator.eval
+		# ZZZ enhance with try/catch for errors
 		js = CoffeeEvaluator.compile @content
 		@element.text js
 		@head.appendChild @element[0]
+		
+	update: (@content) ->
+		@head.removeChild @element[0]
+		@createElement()
+		@compile()
 
 
 class JsonResource extends Resource

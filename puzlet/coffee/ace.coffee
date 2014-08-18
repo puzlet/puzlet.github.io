@@ -1,57 +1,28 @@
 Ace = {}
 
-class Ace.Resources
-	
-	main: [
-		{url: "/puzlet/js/ace4/ace.js"}
-	]
-	
-	modes: [
-		{url: "/puzlet/js/ace4/mode-html.js"}
-		{url: "/puzlet/js/ace4/mode-css.js"}
-		{url: "/puzlet/js/ace4/mode-javascript.js"}
-		{url: "/puzlet/js/ace4/mode-coffee.js"}
-		{url: "/puzlet/js/ace4/mode-python.js"}
-		{url: "/puzlet/js/ace4/mode-matlab.js"}
-		{url: "/puzlet/js/ace4/mode-latex.js"}
-	]
-	
-	styles: [
-		{url: "/puzlet/css/ace.css"}  # Must be loaded after ace.js
-	]
-	
-	constructor: (load, loaded) ->
-		load @main, => load @modes, => load @styles, loaded
-
-
-class Ace.Languages
-	
-	@list:
-		html: {ext: "html", mode: "html"}
-		css: {ext: "css", mode: "css"}
-		javascript: {ext: "js", mode: "javascript"}
-		coffee: {ext: "coffee", mode: "coffee"}
-		python: {ext: "py", mode: "python"}
-		octave: {ext: "m", mode: "matlab"}
-		latex: {ext: "tex", mode: "latex"}
-	
-	@get: (lang) -> Ace.Languages.list[lang]
-	
-	@mode: (lang) -> "ace/mode/"+(Ace.Languages.get(lang).mode)
-	
-	@langName: (ext) ->
-		return name for name, language of Ace.Languages.list when language.ext is ext
-
-
 # ZZZ why is $pz.codeNode needed?
 class Ace.Editors
 	
 	constructor: (@findResource) ->
 		$pz.AceIdentifiers = Ace.Identifiers
 		@containers = $ "div[#{Ace.Editor.fileAttr}]"
-		@editors = (new Ace.Editor $(container), @findResource for container in @containers)
+		@editors = (@createEditor $(container) for container in @containers)
 		$pz.codeNode = {}
 		$pz.codeNode[editor.id] = editor for editor in @editors
+		
+	createEditor: (container) ->
+		filename = container.attr Ace.Editor.fileAttr  # ZZZ should fileAttr come from this class?
+		resource = @findResource filename
+		return null unless resource
+		lang = Ace.Languages.langName resource.fileExt
+		Editor = Ace.Languages.get(lang).Editor ? Ace.Editor
+		spec =
+			container: container
+			filename: filename
+			lang: lang
+			code: resource.content
+			update: (code) -> resource.update?(code)  # Updates resource code
+		new Editor spec
 
 
 class Ace.Editor
@@ -61,14 +32,13 @@ class Ace.Editor
 	
 	@fileAttr: "data-file"
 	
-	constructor: (@container, findResource) ->
+	constructor: (@spec) ->
 		
-		@filename = @container.attr Ace.Editor.fileAttr
-		@resource = findResource @filename
-		return unless @resource
+		@container = @spec.container
 		
-		@lang = Ace.Languages.langName(@resource.fileExt)
-		@content = @resource.content
+		@filename = @spec.filename
+		@lang = @spec.lang
+		
 		@id = "ace_editor_#{@filename}"
 		@initContainer()
 		
@@ -76,7 +46,7 @@ class Ace.Editor
 		@editor.setTheme "ace/theme/textmate"
 		mode = Ace.Languages.mode(@lang) if @lang
 		@session().setMode mode if mode
-		@session().setValue @content #@textarea.val()
+		@session().setValue @spec.code
 		
 		@initRenderer()
 		@initFont()
@@ -88,10 +58,19 @@ class Ace.Editor
 		
 		@editor.setHighlightActiveLine false
 		
+		@enableChangeAction = true
+		@session().on "change", =>
+			@changeAction() if @enableChangeAction
+		@changeListeners = []
+		
 		@customRendering()
 		
 		@inFocus = false
 		
+		@setEditable()
+		@keyboardShortcuts()
+	
+	
 	initContainer: ->
 		@container.addClass "code_node_container"
 		@outer = $ "<div>", class: "code_node_editor_container"  # ZZZ rename?
@@ -101,7 +80,8 @@ class Ace.Editor
 			"data-lang": "#{@lang}"
 		@outer.append @editorContainer
 		@container.append @outer
-		
+	
+	
 	initRenderer: ->
 		
 		@renderer = @editor.renderer
@@ -127,7 +107,8 @@ class Ace.Editor
 		@renderer.$gutterLayer.setShowLineNumbers = (show, start=1) ->
 			this.showLineNumbers = show
 			this.lineNumberStart = start
-		
+	
+	
 	initFont: ->
 		
 		# Code node editor is 720px wide
@@ -156,7 +137,8 @@ class Ace.Editor
 		@narrowFont = @charWidth<9
 		css.fontSize = "12pt" if @narrowFont  # For Consolas
 		@editorContainer.css css
-		
+	
+	
 	setHeight: ->
 		return if not @editor
 		lines = @code().split("\n")
@@ -176,7 +158,8 @@ class Ace.Editor
 		@editorContainer.css("height", heightStr)
 		@outer.css("height", heightStr) # ZZZ Is this the best way?
 		@editor.resize()
-		
+	
+	
 	customRendering: ->
 		
 		@linkSelected = false
@@ -216,7 +199,8 @@ class Ace.Editor
 				@render()
 		
 		#@render()
-		
+	
+	
 	render: ->
 		
 		return unless window.MathJax
@@ -233,9 +217,11 @@ class Ace.Editor
 		f.render() for f in @functions
 		# Also should look for class="ace_entity ace_name ace_function"
 	
+	
 	restoreCode: ->
 		comment.restore() for comment in @comments
 		f.restore() for f in @functions
+	
 	
 	mouseUpHandler: ->
 		# Comment link navigation.
@@ -248,20 +234,97 @@ class Ace.Editor
 			window.open href, target ? "_blank"
 		@linkSelected = false
 		@editor.blur()
-		
+	
+	
 	focus: -> 
 		@editor.focus()  # ZZZ How is this different from base class focus?
 	
-	session: -> if @editor then @editor.getSession() else null
 	
-	code: -> @session().getValue()
+	session: ->
+		if @editor then @editor.getSession() else null
+	
+	
+	code: ->
+		@session().getValue()
+	
+	
+	set: (code) ->
+		# ZZZ or setCode
+		return unless @editor
+		@session().setValue code
+		@setHeight()
+	
 	
 	show: (show) ->
 		@outer.css("display", if show then "" else "none")
 	
+	
 	showCode: (show) ->
 		@editor.show show
 		@editor.resize() if show
+	
+	
+	setEditable: (editable=true) ->
+		@isEditable = editable
+		@editor.setReadOnly (not editable)
+		@editor.setHighlightActiveLine false
+	
+	
+	changeAction: ->
+		@setHeight()  # Resize if code changed.
+		code = @code()
+		#@spec.change? this
+		listener code for listener in @changeListeners
+	
+	
+	onChange: (f) ->
+		@changeListeners.push f
+	
+	
+	keyboardShortcuts: ->
+		command = (o) => @editor.commands.addCommand o
+		command
+			name: "run"
+			bindKey: 
+				win: "Shift-Return"
+				mac: "Shift-Return"
+				sender: "editor"
+			exec: (env, args, request) =>
+				#_gaq?.push ["_trackEvent", "runCoffee", "run (key)", $pz?.module.id]
+				@spec.update(@code())
+		command
+			name: "save"
+			bindKey:
+				win: "Ctrl-s"
+				mac: "Ctrl-s"
+				sender: "editor"
+			exec: (env, args, request) => console.log "save request"  # not implemented yet
+
+class CoffeeEditor extends Ace.Editor
+	
+	constructor: (@spec) ->
+		super @spec
+		@setEditable()
+
+
+class Ace.Languages
+	
+	@list:
+		html: {ext: "html", mode: "html"}
+		css: {ext: "css", mode: "css"}
+		javascript: {ext: "js", mode: "javascript"}
+		coffee: {ext: "coffee", mode: "coffee", Editor: CoffeeEditor}
+		python: {ext: "py", mode: "python"}
+		octave: {ext: "m", mode: "matlab"}
+		latex: {ext: "tex", mode: "latex"}
+	
+	@get: (lang) -> Ace.Languages.list[lang]
+	
+	@mode: (lang) -> "ace/mode/"+(Ace.Languages.get(lang).mode)
+	
+	@langName: (ext) ->
+		return name for name, language of Ace.Languages.list when language.ext is ext	
+	
 
 
 class Ace.Identifiers
@@ -366,4 +429,29 @@ class CodeNodeFunction
 		if @originalText  # ZZZ call @original ?
 			@node.empty()
 			@node.text @originalText
+
+
+class Ace.Resources
+	
+	main: [
+		{url: "/puzlet/js/ace4/ace.js"}
+	]
+	
+	modes: [
+		{url: "/puzlet/js/ace4/mode-html.js"}
+		{url: "/puzlet/js/ace4/mode-css.js"}
+		{url: "/puzlet/js/ace4/mode-javascript.js"}
+		{url: "/puzlet/js/ace4/mode-coffee.js"}
+		{url: "/puzlet/js/ace4/mode-python.js"}
+		{url: "/puzlet/js/ace4/mode-matlab.js"}
+		{url: "/puzlet/js/ace4/mode-latex.js"}
+	]
+	
+	styles: [
+		{url: "/puzlet/css/ace.css"}  # Must be loaded after ace.js
+	]
+	
+	constructor: (load, loaded) ->
+		load @main, => load @modes, => load @styles, loaded
+
 
