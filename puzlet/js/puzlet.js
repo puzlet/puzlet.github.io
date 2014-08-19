@@ -1980,7 +1980,6 @@
       url = "https://api.github.com/gists/" + this.gistId;
       return $.get(url, function(gistData) {
         _this.gistData = gistData;
-        console.log("Gist", _this.gistData.files);
         _this.resources.setGistResources(_this.gistData.files);
         return typeof callback === "function" ? callback() : void 0;
       });
@@ -2042,15 +2041,16 @@
       return this.pageTitle(wikyHtml);
     };
 
-    Page.prototype.ready = function(resources) {
+    Page.prototype.ready = function(resources, gistId) {
       var _this = this;
       this.resources = resources;
+      this.gistId = gistId;
       new Ace.Editors(function(url) {
         return _this.resources.find(url);
       });
       new MathJaxProcessor;
       new FavIcon;
-      return new GithubRibbon(this.container, this.blab);
+      return new GithubRibbon(this.container, this.blab, this.gistId);
     };
 
     Page.prototype.rerender = function() {
@@ -2098,12 +2098,14 @@
 
   GithubRibbon = (function() {
 
-    function GithubRibbon(container, blab) {
-      var html, src;
+    function GithubRibbon(container, blab, gistId) {
+      var html, link, src;
       this.container = container;
       this.blab = blab;
+      this.gistId = gistId;
+      link = this.gistId ? "https://gist.github.com/" + this.gistId : "https://github.com/puzlet/" + this.blab;
       src = "https://camo.githubusercontent.com/365986a132ccd6a44c23a9169022c0b5c890c387/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f7265645f6161303030302e706e67";
-      html = "<a href=\"https://github.com/puzlet/" + this.blab + "\" id=\"ribbon\" style=\"opacity:0.2\">\n<img style=\"position: absolute; top: 0; right: 0; border: 0;\" src=\"" + src + "\" alt=\"Fork me on GitHub\" data-canonical-src=\"https://s3.amazonaws.com/github/ribbons/forkme_right_red_aa0000.png\"></a>";
+      html = "<a href=\"" + link + "\" id=\"ribbon\" style=\"opacity:0.2\">\n<img style=\"position: absolute; top: 0; right: 0; border: 0;\" src=\"" + src + "\" alt=\"Fork me on GitHub\" data-canonical-src=\"https://s3.amazonaws.com/github/ribbons/forkme_right_red_aa0000.png\"></a>";
       this.container.append(html);
       setTimeout((function() {
         return $("#ribbon").fadeTo(400, 1).fadeTo(400, 0.2);
@@ -2232,7 +2234,7 @@
       return page.render(wikyHtml);
     };
     ready = function() {
-      return page.ready(loader.resources);
+      return page.ready(loader.resources, loader.gistId);
     };
     loader = new Loader(blab, render, ready);
     return $pz.renderHtml = function() {

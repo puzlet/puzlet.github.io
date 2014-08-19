@@ -140,7 +140,6 @@ class Loader
 		# For https://gist.github.com/:id
 		url = "https://api.github.com/gists/#{@gistId}"
 		$.get(url, (@gistData) =>
-			console.log "Gist", @gistData.files
 			@resources.setGistResources @gistData.files
 			callback?()
 		)
@@ -176,11 +175,11 @@ class Page
 		@container.append Wiky.toHtml(wikyHtml)
 		@pageTitle wikyHtml  # ZZZ should work only for first wikyHtml
 		
-	ready: (@resources) ->
+	ready: (@resources, @gistId) ->
 		new Ace.Editors (url) => @resources.find url
 		new MathJaxProcessor  # ZZZ should be after all html rendered?
 		new FavIcon
-		new GithubRibbon @container, @blab
+		new GithubRibbon @container, @blab, @gistId
 		
 	rerender: ->
 		@empty()
@@ -205,11 +204,12 @@ class FavIcon
 
 class GithubRibbon
 	
-	constructor: (@container, @blab) ->
-	
+	constructor: (@container, @blab, @gistId) ->
+		
+		link = if @gistId then "https://gist.github.com/#{@gistId}" else "https://github.com/puzlet/#{@blab}"
 		src = "https://camo.githubusercontent.com/365986a132ccd6a44c23a9169022c0b5c890c387/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f7265645f6161303030302e706e67"
 		html = """
-			<a href="https://github.com/puzlet/#{@blab}" id="ribbon" style="opacity:0.2">
+			<a href="#{link}" id="ribbon" style="opacity:0.2">
 			<img style="position: absolute; top: 0; right: 0; border: 0;" src="#{src}" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_red_aa0000.png"></a>
 		"""
 		@container.append(html)
@@ -293,7 +293,7 @@ init = ->
 	return unless blab and blab isnt "puzlet.github.io"
 	page = new Page blab
 	render = (wikyHtml) -> page.render wikyHtml
-	ready = -> page.ready loader.resources
+	ready = -> page.ready loader.resources, loader.gistId
 	loader = new Loader blab, render, ready
 	$pz.renderHtml = -> page.rerender()
 
