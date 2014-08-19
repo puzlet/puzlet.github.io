@@ -11,6 +11,10 @@ class Resource
 	load: (callback, type="text") ->
 		# Default file load method.
 		# Uses jQuery.
+		if @spec.gistSource
+			@content = @spec.gistSource
+			@postLoad callback
+			return
 		success = (data) =>
 			@content = data
 			@postLoad callback
@@ -192,6 +196,7 @@ class Resources
 		fileExt = Resource.getFileExt url
 		location = if url.indexOf("/") is -1 then "blab" else "ext"
 		spec.location = location  # Needed for coffee compiling
+		spec.gistSource = @gistFiles?[url]?.content ? null
 		if @resourceTypes[fileExt] then new @resourceTypes[fileExt][location](spec) else null
 	
 	load: (filter, loaded) ->
@@ -232,3 +237,6 @@ class Resources
 	find: (url) ->
 		return resource for resource in @resources when resource.url is url
 		return null
+	
+	setGistResources: (@gistFiles) ->
+	

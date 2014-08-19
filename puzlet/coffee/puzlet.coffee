@@ -51,7 +51,7 @@ class Loader
 	
 	constructor: (@blab, @render, @done) ->
 		@resources = new Resources
-		@loadCoreResources => @loadResourceList => @loadHtmlCss => @loadScripts => @loadAce => @done()
+		@loadCoreResources => @getGist => @loadResourceList => @loadHtmlCss => @loadScripts => @loadAce => @done()
 	
 	# Dynamically load and run jQuery and Wiky.
 	loadCoreResources: (callback) ->
@@ -131,13 +131,26 @@ class Loader
 			dataType: "json"
 		})
 		
-	getGist: ->
-		# Test
-		# For https://gist.github.com/anonymous/d766b1f32ab6c2258da2
-		url = "https://api.github.com/gists/d766b1f32ab6c2258da2"
-		$.get(url, (data) ->
-			console.log "gist", data
+	getGist: (callback) ->
+		@gistId = @getGistId()
+		unless @gistId
+			@gistData = null
+			callback?()
+			return
+		# For https://gist.github.com/:id
+		url = "https://api.github.com/gists/#{@gistId}"
+		$.get(url, (@gistData) =>
+			console.log "Gist", @gistData.files
+			@resources.setGistResources @gistData.files
+			callback?()
 		)
+		
+	getGistId: ->
+		query = location.search.slice(1)
+		return null unless query
+		h = query.split "&"
+		p = h?[0].split "="
+		gist = if p.length and p[0] is "gist" then p[1] else null
 		
 	compileCoffee: ->
 		# ZZZ do external first; then blabs.

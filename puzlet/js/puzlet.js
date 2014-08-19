@@ -695,6 +695,11 @@
       if (type == null) {
         type = "text";
       }
+      if (this.spec.gistSource) {
+        this.content = this.spec.gistSource;
+        this.postLoad(callback);
+        return;
+      }
       success = function(data) {
         _this.content = data;
         return _this.postLoad(callback);
@@ -1004,11 +1009,12 @@
     };
 
     Resources.prototype.createResource = function(spec) {
-      var fileExt, location, url;
+      var fileExt, location, url, _ref, _ref1, _ref2;
       url = spec.url;
       fileExt = Resource.getFileExt(url);
       location = url.indexOf("/") === -1 ? "blab" : "ext";
       spec.location = location;
+      spec.gistSource = (_ref = (_ref1 = this.gistFiles) != null ? (_ref2 = _ref1[url]) != null ? _ref2.content : void 0 : void 0) != null ? _ref : null;
       if (this.resourceTypes[fileExt]) {
         return new this.resourceTypes[fileExt][location](spec);
       } else {
@@ -1100,6 +1106,10 @@
         }
       }
       return null;
+    };
+
+    Resources.prototype.setGistResources = function(gistFiles) {
+      this.gistFiles = gistFiles;
     };
 
     return Resources;
@@ -1847,11 +1857,13 @@
       this.done = done;
       this.resources = new Resources;
       this.loadCoreResources(function() {
-        return _this.loadResourceList(function() {
-          return _this.loadHtmlCss(function() {
-            return _this.loadScripts(function() {
-              return _this.loadAce(function() {
-                return _this.done();
+        return _this.getGist(function() {
+          return _this.loadResourceList(function() {
+            return _this.loadHtmlCss(function() {
+              return _this.loadScripts(function() {
+                return _this.loadAce(function() {
+                  return _this.done();
+                });
               });
             });
           });
@@ -1954,12 +1966,35 @@
       });
     };
 
-    Loader.prototype.getGist = function() {
-      var url;
-      url = "https://api.github.com/gists/d766b1f32ab6c2258da2";
-      return $.get(url, function(data) {
-        return console.log("gist", data);
+    Loader.prototype.getGist = function(callback) {
+      var url,
+        _this = this;
+      this.gistId = this.getGistId();
+      if (!this.gistId) {
+        this.gistData = null;
+        if (typeof callback === "function") {
+          callback();
+        }
+        return;
+      }
+      url = "https://api.github.com/gists/" + this.gistId;
+      return $.get(url, function(gistData) {
+        _this.gistData = gistData;
+        console.log("Gist", _this.gistData.files);
+        _this.resources.setGistResources(_this.gistData.files);
+        return typeof callback === "function" ? callback() : void 0;
       });
+    };
+
+    Loader.prototype.getGistId = function() {
+      var gist, h, p, query;
+      query = location.search.slice(1);
+      if (!query) {
+        return null;
+      }
+      h = query.split("&");
+      p = h != null ? h[0].split("=") : void 0;
+      return gist = p.length && p[0] === "gist" ? p[1] : null;
     };
 
     Loader.prototype.compileCoffee = function() {
