@@ -1948,7 +1948,7 @@
         data: JSON.stringify(ajaxData),
         success: function(data) {
           console.log("Created gist", data.html_url, data);
-          return alert("Gist: " + data.html_url);
+          return $(document.body).prepend("<p>Created gist: <a href='" + data.html_url + "' target='_blank'>" + data.html_url + "</a></p>");
         },
         dataType: "json"
       });
