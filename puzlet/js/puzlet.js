@@ -712,6 +712,11 @@
       return this.fileExt === type;
     };
 
+    Resource.prototype.update = function(content) {
+      this.content = content;
+      return console.log("No update method for " + this.url);
+    };
+
     Resource.getFileExt = function(url) {
       var a, fileExt;
       a = document.createElement("a");
@@ -747,6 +752,11 @@
     function HtmlResource() {
       return HtmlResource.__super__.constructor.apply(this, arguments);
     }
+
+    HtmlResource.prototype.update = function(content) {
+      this.content = content;
+      return $pz.renderHtml();
+    };
 
     return HtmlResource;
 
@@ -932,10 +942,6 @@
     function JsonResource() {
       return JsonResource.__super__.constructor.apply(this, arguments);
     }
-
-    JsonResource.prototype.load = function(callback) {
-      return JsonResource.__super__.load.call(this, callback, "json");
-    };
 
     return JsonResource;
 
@@ -1497,7 +1503,7 @@
           sender: "editor"
         },
         exec: function(env, args, request) {
-          return console.log("save request");
+          return $(document).trigger("saveGist");
         }
       });
     };
@@ -1513,7 +1519,6 @@
     function CoffeeEditor(spec) {
       this.spec = spec;
       CoffeeEditor.__super__.constructor.call(this, this.spec);
-      this.setEditable();
     }
 
     return CoffeeEditor;
@@ -1541,6 +1546,10 @@
         ext: "coffee",
         mode: "coffee",
         Editor: CoffeeEditor
+      },
+      json: {
+        ext: "json",
+        mode: "javascript"
       },
       python: {
         ext: "py",
@@ -1860,15 +1869,15 @@
         _this = this;
       list = this.resources.add(this.resourcesList);
       return this.resources.loadUnloaded(function() {
-        var url;
+        var listResources, url;
         _this.resources.add(_this.htmlResources);
         _this.resources.add(_this.scriptResources);
+        listResources = JSON.parse(list.content);
         _this.resources.add((function() {
-          var _i, _len, _ref, _results;
-          _ref = list.content;
+          var _i, _len, _results;
           _results = [];
-          for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-            url = _ref[_i];
+          for (_i = 0, _len = listResources.length; _i < _len; _i++) {
+            url = listResources[_i];
             _results.push({
               url: url
             });
@@ -1909,7 +1918,48 @@
           return typeof callback === "function" ? callback() : void 0;
         });
       };
-      return new Ace.Resources(load, callback);
+      new Ace.Resources(load, callback);
+      return $(document).on("saveGist", function() {
+        return _this.saveGist();
+      });
+    };
+
+    Loader.prototype.saveGist = function() {
+      var ajaxData, files, resource, resources, _i, _len;
+      console.log("Save to anonymous Gist");
+      resources = this.resources.select(function(resource) {
+        return resource.spec.location === "blab";
+      });
+      files = {};
+      for (_i = 0, _len = resources.length; _i < _len; _i++) {
+        resource = resources[_i];
+        files[resource.url] = {
+          content: resource.content
+        };
+      }
+      ajaxData = {
+        description: document.title,
+        "public": false,
+        files: files
+      };
+      return $.ajax({
+        type: "POST",
+        url: "https://api.github.com/gists",
+        data: JSON.stringify(ajaxData),
+        success: function(data) {
+          console.log("Created gist", data.html_url, data);
+          return alert("Gist: " + data.html_url);
+        },
+        dataType: "json"
+      });
+    };
+
+    Loader.prototype.getGist = function() {
+      var url;
+      url = "https://api.github.com/gists/d766b1f32ab6c2258da2";
+      return $.get(url, function(data) {
+        return console.log("gist", data);
+      });
     };
 
     Loader.prototype.compileCoffee = function() {
@@ -1945,6 +1995,10 @@
       return this.container.show();
     };
 
+    Page.prototype.empty = function() {
+      return this.container.empty();
+    };
+
     Page.prototype.render = function(wikyHtml) {
       if (this.container == null) {
         this.mainContainer();
@@ -1962,6 +2016,21 @@
       new MathJaxProcessor;
       new FavIcon;
       return new GithubRibbon(this.container, this.blab);
+    };
+
+    Page.prototype.rerender = function() {
+      var html, _i, _len, _ref,
+        _this = this;
+      this.empty();
+      _ref = this.resources.select("html");
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        html = _ref[_i];
+        this.render(html.content);
+      }
+      new Ace.Editors(function(url) {
+        return _this.resources.find(url);
+      });
+      return $(document).trigger("htmlOutputUpdated");
     };
 
     Page.prototype.pageTitle = function(wikyHtml) {
@@ -2130,7 +2199,10 @@
     ready = function() {
       return page.ready(loader.resources);
     };
-    return loader = new Loader(blab, render, ready);
+    loader = new Loader(blab, render, ready);
+    return $pz.renderHtml = function() {
+      return page.rerender();
+    };
   };
 
   init();

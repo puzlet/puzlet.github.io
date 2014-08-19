@@ -298,13 +298,15 @@ class Ace.Editor
 				win: "Ctrl-s"
 				mac: "Ctrl-s"
 				sender: "editor"
-			exec: (env, args, request) => console.log "save request"  # not implemented yet
+			exec: (env, args, request) => $(document).trigger "saveGist"
+	
+
 
 class CoffeeEditor extends Ace.Editor
 	
 	constructor: (@spec) ->
 		super @spec
-		@setEditable()
+		#@setEditable()
 
 
 class Ace.Languages
@@ -314,6 +316,7 @@ class Ace.Languages
 		css: {ext: "css", mode: "css"}
 		javascript: {ext: "js", mode: "javascript"}
 		coffee: {ext: "coffee", mode: "coffee", Editor: CoffeeEditor}
+		json: {ext: "json", mode: "javascript"}
 		python: {ext: "py", mode: "python"}
 		octave: {ext: "m", mode: "matlab"}
 		latex: {ext: "tex", mode: "latex"}
@@ -323,7 +326,7 @@ class Ace.Languages
 	@mode: (lang) -> "ace/mode/"+(Ace.Languages.get(lang).mode)
 	
 	@langName: (ext) ->
-		return name for name, language of Ace.Languages.list when language.ext is ext	
+		return name for name, language of Ace.Languages.list when language.ext is ext
 	
 
 

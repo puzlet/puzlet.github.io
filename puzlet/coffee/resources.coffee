@@ -23,6 +23,9 @@ class Resource
 	
 	isType: (type) -> @fileExt is type
 	
+	update: (@content) ->
+		console.log "No update method for #{@url}"
+	
 	@getFileExt: (url) ->
 		a = document.createElement "a"
 		a.href = url
@@ -40,6 +43,9 @@ class Resource
 
 
 class HtmlResource extends Resource
+	
+	update: (@content) ->
+		$pz.renderHtml()
 
 
 class ResourceInline extends Resource
@@ -50,7 +56,6 @@ class ResourceInline extends Resource
 	load: (callback) ->
 		super =>
 			@createElement()
-			#@element.text @content
 			callback?()
 			
 	createElement: ->
@@ -146,8 +151,6 @@ class CoffeeResource extends Resource
 
 
 class JsonResource extends Resource
-	
-	load: (callback) -> super callback, "json"
 
 
 class Resources

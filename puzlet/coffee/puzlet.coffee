@@ -66,7 +66,8 @@ class Loader
 		@resources.loadUnloaded =>
 			@resources.add @htmlResources
 			@resources.add @scriptResources
-			@resources.add({url: url} for url in list.content)
+			listResources = JSON.parse list.content
+			@resources.add({url: url} for url in listResources)
 			callback?()
 	
 	# Async load html and css:
@@ -100,7 +101,38 @@ class Loader
 			@resources.add resources
 			@resources.load ["js", "css"], => callback?()
 		new Ace.Resources load, callback
+		$(document).on "saveGist", => @saveGist()
 	
+	saveGist: ->
+		
+		console.log "Save to anonymous Gist"
+		
+		resources = @resources.select (resource) -> resource.spec.location is "blab"
+		files = {}
+		files[resource.url] = {content: resource.content} for resource in resources
+		
+		ajaxData =
+			description: document.title
+			public: false
+			files: files
+		$.ajax({
+			type: "POST"
+			url: "https://api.github.com/gists"
+			data: JSON.stringify(ajaxData)
+			success: (data) ->
+				console.log "Created gist", data.html_url, data
+				alert "Gist: #{data.html_url}"
+			dataType: "json"
+		})
+		
+	getGist: ->
+		# Test
+		# For https://gist.github.com/anonymous/d766b1f32ab6c2258da2
+		url = "https://api.github.com/gists/d766b1f32ab6c2258da2"
+		$.get(url, (data) ->
+			console.log "gist", data
+		)
+		
 	compileCoffee: ->
 		# ZZZ do external first; then blabs.
 		coffee.compile() for coffee in @resources.select "coffee"
@@ -116,6 +148,9 @@ class Page
 		@container.hide()
 		$(document.body).append @container
 		@container.show()  # ZZZ should show only after all html rendered - need another event.
+		
+	empty: ->
+		@container.empty()
 	
 	render: (wikyHtml) ->
 		@mainContainer() unless @container?
@@ -127,6 +162,12 @@ class Page
 		new MathJaxProcessor  # ZZZ should be after all html rendered?
 		new FavIcon
 		new GithubRibbon @container, @blab
+		
+	rerender: ->
+		@empty()
+		@render html.content for html in @resources.select("html")
+		new Ace.Editors (url) => @resources.find url
+		$(document).trigger "htmlOutputUpdated"
 	
 	pageTitle: (wikyHtml) ->
 		matches = wikyHtml.match /[^|\n][=]{1,6}(.*?)[=]{1,6}[^a-z0-9][\n|$]/
@@ -235,7 +276,7 @@ init = ->
 	render = (wikyHtml) -> page.render wikyHtml
 	ready = -> page.ready loader.resources
 	loader = new Loader blab, render, ready
-
+	$pz.renderHtml = -> page.rerender()
 
 init()
 
