@@ -298,7 +298,9 @@ class Ace.Editor
 				win: "Ctrl-s"
 				mac: "Ctrl-s"
 				sender: "editor"
-			exec: (env, args, request) => $(document).trigger "saveGist"
+			exec: (env, args, request) =>
+				@spec.update(@code())
+				$(document).trigger "saveGist"
 	
 
 

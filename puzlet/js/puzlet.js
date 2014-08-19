@@ -1513,6 +1513,7 @@
           sender: "editor"
         },
         exec: function(env, args, request) {
+          _this.spec.update(_this.code());
           return $(document).trigger("saveGist");
         }
       });
