@@ -122,7 +122,8 @@ class Loader
 			success: (data) ->
 				console.log "Created gist", data.html_url, data
 				blabUrl = "?gist="+data.id  # data.html_url
-				$(document.body).prepend "<a href='#{blabUrl}' target='_blank'>Saved as Gist</a><br>"
+				window.location = blabUrl
+				#$(document.body).prepend "<a href='#{blabUrl}' target='_blank'>Saved as Gist</a><br>"
 				#alert "Gist: #{data.html_url}"
 			dataType: "json"
 		})

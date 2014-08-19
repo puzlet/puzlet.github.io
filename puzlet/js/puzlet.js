@@ -1963,7 +1963,7 @@
           var blabUrl;
           console.log("Created gist", data.html_url, data);
           blabUrl = "?gist=" + data.id;
-          return $(document.body).prepend("<a href='" + blabUrl + "' target='_blank'>Saved as Gist</a><br>");
+          return window.location = blabUrl;
         },
         dataType: "json"
       });
