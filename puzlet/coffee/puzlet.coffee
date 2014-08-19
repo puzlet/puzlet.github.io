@@ -111,11 +111,6 @@ class Loader
 		files = {}
 		files[resource.url] = {content: resource.content} for resource in resources
 		
-		#data = {html_url: "puzlet.com"}
-		#$(document.body).prepend "<p>Created gist: <a href='#{data.html_url}'>#{data.html_url}</a></p>"
-		
-		#return
-		
 		ajaxData =
 			description: document.title
 			public: false
@@ -126,7 +121,8 @@ class Loader
 			data: JSON.stringify(ajaxData)
 			success: (data) ->
 				console.log "Created gist", data.html_url, data
-				$(document.body).prepend "<p>Created gist: <a href='#{data.html_url}' target='_blank'>#{data.html_url}</a></p>"
+				blabUrl = "?gist="+data.id  # data.html_url
+				$(document.body).prepend "<a href='#{blabUrl}' target='_blank'>Saved as Gist</a><br>"
 				#alert "Gist: #{data.html_url}"
 			dataType: "json"
 		})

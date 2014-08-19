@@ -1959,8 +1959,10 @@
         url: "https://api.github.com/gists",
         data: JSON.stringify(ajaxData),
         success: function(data) {
+          var blabUrl;
           console.log("Created gist", data.html_url, data);
-          return $(document.body).prepend("<p>Created gist: <a href='" + data.html_url + "' target='_blank'>" + data.html_url + "</a></p>");
+          blabUrl = "?gist=" + data.id;
+          return $(document.body).prepend("<a href='" + blabUrl + "' target='_blank'>Saved as Gist</a><br>");
         },
         dataType: "json"
       });
