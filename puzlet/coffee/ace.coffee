@@ -1,28 +1,95 @@
 Ace = {}
 
+class Ace.Node
+	
+	@fileAttr: null  # Override in subclass
+	
+	@find: (url) -> $ ("div[#{@fileAttr}='#{url}']")
+	
+	constructor: (@container, @findResource) ->
+		@getSpec()
+		@create()
+		
+	# Specialize in subclass
+	getSpec: ->
+		fileAttr = this.constructor.fileAttr  # Gets class fileAttr
+		@filename = @container.attr fileAttr
+		@resource = @findResource @filename
+		return unless @resource
+		@lang = Ace.Languages.langName @resource.fileExt
+		@spec =
+			container: @container
+			filename: @filename
+			lang: @lang
+			
+	create: -> # Override in subclass
+
+
+class Ace.EditorNode extends Ace.Node
+	
+	@fileAttr: "data-file"
+	
+	getSpec: ->
+		super()
+		return unless @resource
+		@spec.code = @resource.content
+		@spec.update = (code) => @resource.update?(code)  # Updates resource code
+		
+	create: ->
+		Editor = Ace.Languages.get(@spec.lang).Editor ? Ace.Editor
+		new Editor @spec
+
+
+class Ace.EvalNode extends Ace.Node
+	
+	@fileAttr: "data-eval"
+	
+	create: ->
+		# Initially, support only CoffeeScript eval.
+		if @lang isnt "coffee"
+			console.log "<div data-eval='#{@filename}'>: must be CoffeeScript."
+			return
+		
+		@editor = new CoffeeEval @spec
+		@setCode()
+		# ZZZ handle via resource event?
+		$(document).on "compiledCoffeeScript", (ev, data) =>
+			@setCode() if data.url is @filename
+			
+	setCode: ->
+		@editor.set @resource.resultStr
+
+
+class Ace.Nodes
+	
+	# Abstract class for Ace.Editors and Ace.Evals
+	
+	Node: Ace.Node
+	
+	constructor:  (@findResource) ->
+		@fileAttr = @Node.fileAttr
+		@containers = $ "div[#{@fileAttr}]"
+		@nodes = (@createNode $(container) for container in @containers)
+		
+	createNode: (container) ->
+		new @Node container, @findResource
+
+
 # ZZZ why is $pz.codeNode needed?
-class Ace.Editors
+class Ace.Editors extends Ace.Nodes
+	
+	Node: Ace.EditorNode
 	
 	constructor: (@findResource) ->
 		$pz.AceIdentifiers = Ace.Identifiers
-		@containers = $ "div[#{Ace.Editor.fileAttr}]"
-		@editors = (@createEditor $(container) for container in @containers)
+		super @findResource
 		$pz.codeNode = {}
-		$pz.codeNode[editor.id] = editor for editor in @editors
-		
-	createEditor: (container) ->
-		filename = container.attr Ace.Editor.fileAttr  # ZZZ should fileAttr come from this class?
-		resource = @findResource filename
-		return null unless resource
-		lang = Ace.Languages.langName resource.fileExt
-		Editor = Ace.Languages.get(lang).Editor ? Ace.Editor
-		spec =
-			container: container
-			filename: filename
-			lang: lang
-			code: resource.content
-			update: (code) -> resource.update?(code)  # Updates resource code
-		new Editor spec
+		$pz.codeNode[editor.id] = editor for editor in @nodes
+
+
+class Ace.Evals extends Ace.Nodes
+	
+	Node: Ace.EvalNode
 
 
 class Ace.Editor
@@ -30,48 +97,33 @@ class Ace.Editor
 	# ZZZ methods to get resource attrs?
 	# ZZZ rename container?
 	
-	@fileAttr: "data-file"
+	idPrefix: "ace_editor_"
 	
 	constructor: (@spec) ->
 		
-		@container = @spec.container
-		
 		@filename = @spec.filename
 		@lang = @spec.lang
+		@id = @idPrefix + @filename
 		
-		@id = "ace_editor_#{@filename}"
 		@initContainer()
 		
 		@editor = ace.edit @id
-		@editor.setTheme "ace/theme/textmate"
-		mode = Ace.Languages.mode(@lang) if @lang
-		@session().setMode mode if mode
-		@session().setValue @spec.code
 		
+		@initMode()
 		@initRenderer()
 		@initFont()
-		@setHeight()
 		
-		@isEditable = false
-		@editor.setReadOnly true
-		@renderer.$gutterLayer.setShowLineNumbers false, 1
-		
-		@editor.setHighlightActiveLine false
-		
-		@enableChangeAction = true
-		@session().on "change", =>
-			@changeAction() if @enableChangeAction
-		@changeListeners = []
-		
-		@customRendering()
-		
-		@inFocus = false
-		
+		@set @spec.code
 		@setEditable()
+		
+		@initChangeListeners()
 		@keyboardShortcuts()
+		
+		new Ace.CustomRenderer this
 	
 	
 	initContainer: ->
+		@container = @spec.container
 		@container.addClass "code_node_container"
 		@outer = $ "<div>", class: "code_node_editor_container"  # ZZZ rename?
 		@editorContainer = $ "<div>",
@@ -82,12 +134,17 @@ class Ace.Editor
 		@container.append @outer
 	
 	
+	initMode: ->
+		@editor.setTheme "ace/theme/textmate"
+		mode = Ace.Languages.mode(@lang) if @lang
+		@session().setMode mode if mode
+	
+	
 	initRenderer: ->
 		
 		@renderer = @editor.renderer
 		
 		# Initially no scroll bars
-		id = @id
 		@renderer.scrollBar.setWidth = (width) ->
 			# width and element are properties of renderer
 			width = this.width or 15 unless width?
@@ -107,6 +164,11 @@ class Ace.Editor
 		@renderer.$gutterLayer.setShowLineNumbers = (show, start=1) ->
 			this.showLineNumbers = show
 			this.lineNumberStart = start
+			
+		@renderer.$gutterLayer.setShowLineNumbers true, 1  # Default - line numbers enabled
+		#@renderer.$gutterLayer.setShowLineNumbers false, 1  # Initially no line numbers
+		@editor.setShowFoldWidgets false
+		
 	
 	
 	initFont: ->
@@ -160,82 +222,6 @@ class Ace.Editor
 		@editor.resize()
 	
 	
-	customRendering: ->
-		
-		@linkSelected = false
-		@comments = []
-		@functions = []
-		
-		@editor.setShowFoldWidgets false
-		@renderer.$gutterLayer.setShowLineNumbers true, 1
-		
-		# Override onFocus method.
-		onFocus = @editor.onFocus  # Current onFocus method.
-		@editor.onFocus = =>
-			@restoreCode()
-			# ZZZ issue here?
-			onFocus.call @editor
-			@renderer.showCursor() if @isEditable
-			@renderer.hideCursor() unless @isEditable
-			@editor.setHighlightActiveLine true #if source.isEditable
-			@inFocus = true
-			
-		onBlur = @editor.onBlur  # Current onBlur method.
-		@editor.onBlur = =>
-			@renderer.hideCursor()
-			@editor.setHighlightActiveLine false
-			@render()
-			@inFocus = false
-			#onBlur.call @editor  # Why is this omitted?
-		
-		# Comment link navigation etc.
-		@editor.on "mouseup", (aceEvent) => @mouseUpHandler()
-		
-		# ZZZ temporary hack to render function links
-		#@registerLinks()
-		
-		$(document).on "mathjaxPreConfig", =>
-			window.MathJax.Hub.Register.StartupHook "MathMenu Ready", =>
-				@render()
-		
-		#@render()
-	
-	
-	render: ->
-		
-		return unless window.MathJax
-		return unless $blab.codeDecoration
-		
-		commentNodes = @editorContainer.find ".ace_comment"
-		linkCallback = (target) => @linkSelected = target
-		@comments = (new CodeNodeComment($(node), linkCallback) for node in commentNodes)
-		comment.render() for comment in @comments
-		
-		# Identifiers/functions test.
-		identifiers = @editorContainer.find ".ace_identifier"
-		@functions = (new CodeNodeFunction($(i), l, linkCallback) for i in identifiers when l = Ace.Identifiers.link($(i).text()))
-		f.render() for f in @functions
-		# Also should look for class="ace_entity ace_name ace_function"
-	
-	
-	restoreCode: ->
-		comment.restore() for comment in @comments
-		f.restore() for f in @functions
-	
-	
-	mouseUpHandler: ->
-		# Comment link navigation.
-		return unless @linkSelected
-		href = @linkSelected.attr "href"
-		target = @linkSelected.attr "target"
-		if target is "_self"
-			$(document.body).animate {scrollTop: $(href).offset().top}, 1000
-		else
-			window.open href, target ? "_blank"
-		@linkSelected = false
-		@editor.blur()
-	
-	
 	focus: -> 
 		@editor.focus()  # ZZZ How is this different from base class focus?
 	
@@ -270,11 +256,16 @@ class Ace.Editor
 		@editor.setHighlightActiveLine false
 	
 	
-	changeAction: ->
-		@setHeight()  # Resize if code changed.
-		code = @code()
-		#@spec.change? this
-		listener code for listener in @changeListeners
+	initChangeListeners: ->
+		@enableChangeAction = true
+		changeAction = =>
+			@setHeight()  # Resize if code changed.
+			code = @code()
+			#@spec.change? this
+			listener code for listener in @changeListeners
+		@session().on "change", =>
+			changeAction() if @enableChangeAction
+		@changeListeners = []
 	
 	
 	onChange: (f) ->
@@ -311,6 +302,22 @@ class CoffeeEditor extends Ace.Editor
 		#@setEditable()
 
 
+class CoffeeEval extends Ace.Editor
+	
+	idPrefix: "ace_eval_"
+	
+	constructor: (@spec) ->
+		super @spec
+		
+		@editorContainer.css background: "white"  # Doesn't work via CSS style sheet.
+		@renderer.setShowGutter false
+		@container.css border: "1px dashed black"
+		
+	# ZZZ redefine set method for extra line feed.  also, plot line feeds.
+			
+		
+
+
 class Ace.Languages
 	
 	@list:
@@ -330,6 +337,121 @@ class Ace.Languages
 	@langName: (ext) ->
 		return name for name, language of Ace.Languages.list when language.ext is ext
 	
+
+
+class Ace.Resources
+	
+	main: [
+		{url: "/puzlet/js/ace4/ace.js"}
+	]
+	
+	modes: [
+		{url: "/puzlet/js/ace4/mode-html.js"}
+		{url: "/puzlet/js/ace4/mode-css.js"}
+		{url: "/puzlet/js/ace4/mode-javascript.js"}
+		{url: "/puzlet/js/ace4/mode-coffee.js"}
+		{url: "/puzlet/js/ace4/mode-python.js"}
+		{url: "/puzlet/js/ace4/mode-matlab.js"}
+		{url: "/puzlet/js/ace4/mode-latex.js"}
+	]
+	
+	styles: [
+		{url: "/puzlet/css/ace.css"}  # Must be loaded after ace.js
+	]
+	
+	constructor: (load, loaded) ->
+		load @main, => load @modes, => load @styles, loaded
+
+
+#--- Ace custom rendering: comments and function links ---# 
+
+class Ace.CustomRenderer
+	
+	constructor: (@node) ->
+		
+		@editorContainer = @node.editorContainer
+		@editor = @node.editor
+		@renderer = @node.renderer
+		@isEditable = @node.isEditable
+		
+		@customRendering()
+		
+	customRendering: ->
+		
+		@linkSelected = false
+		@comments = []
+		@functions = []
+		
+		#@editor.setShowFoldWidgets false
+		#@renderer.$gutterLayer.setShowLineNumbers true, 1
+		
+		@inFocus = false
+		
+		# Override onFocus method.
+		onFocus = @editor.onFocus  # Current onFocus method.
+		@editor.onFocus = =>
+			@restoreCode()
+			# ZZZ issue here?
+			onFocus.call @editor
+			@renderer.showCursor() if @isEditable
+			@renderer.hideCursor() unless @isEditable
+			@editor.setHighlightActiveLine true #if source.isEditable
+			@inFocus = true
+		
+		onBlur = @editor.onBlur  # Current onBlur method.
+		@editor.onBlur = =>
+			@renderer.hideCursor()
+			@editor.setHighlightActiveLine false
+			@render()
+			@inFocus = false
+			#onBlur.call @editor  # Why is this omitted?
+		
+		# Comment link navigation etc.
+		@editor.on "mouseup", (aceEvent) => @mouseUpHandler()
+		
+		# ZZZ temporary hack to render function links
+		#@registerLinks()
+		
+		$(document).on "mathjaxPreConfig", =>
+			window.MathJax.Hub.Register.StartupHook "MathMenu Ready", =>
+				@render()
+		
+		#@render()
+		
+		
+	render: ->
+		
+		return unless window.MathJax
+		return unless $blab.codeDecoration
+		
+		commentNodes = @editorContainer.find ".ace_comment"
+		linkCallback = (target) => @linkSelected = target
+		@comments = (new CodeNodeComment($(node), linkCallback) for node in commentNodes)
+		comment.render() for comment in @comments
+		
+		# Identifiers/functions test.
+		identifiers = @editorContainer.find ".ace_identifier"
+		@functions = (new CodeNodeFunction($(i), l, linkCallback) for i in identifiers when l = Ace.Identifiers.link($(i).text()))
+		f.render() for f in @functions
+		# Also should look for class="ace_entity ace_name ace_function"
+			
+			
+	restoreCode: ->
+		comment.restore() for comment in @comments
+		f.restore() for f in @functions
+		
+		
+	mouseUpHandler: ->
+		# Comment link navigation.
+		return unless @linkSelected
+		href = @linkSelected.attr "href"
+		target = @linkSelected.attr "target"
+		if target is "_self"
+			$(document.body).animate {scrollTop: $(href).offset().top}, 1000
+		else
+			window.open href, target ? "_blank"
+		@linkSelected = false
+		@editor.blur()
 
 
 class Ace.Identifiers
@@ -436,27 +558,5 @@ class CodeNodeFunction
 			@node.text @originalText
 
 
-class Ace.Resources
-	
-	main: [
-		{url: "/puzlet/js/ace4/ace.js"}
-	]
-	
-	modes: [
-		{url: "/puzlet/js/ace4/mode-html.js"}
-		{url: "/puzlet/js/ace4/mode-css.js"}
-		{url: "/puzlet/js/ace4/mode-javascript.js"}
-		{url: "/puzlet/js/ace4/mode-coffee.js"}
-		{url: "/puzlet/js/ace4/mode-python.js"}
-		{url: "/puzlet/js/ace4/mode-matlab.js"}
-		{url: "/puzlet/js/ace4/mode-latex.js"}
-	]
-	
-	styles: [
-		{url: "/puzlet/css/ace.css"}  # Must be loaded after ace.js
-	]
-	
-	constructor: (load, loaded) ->
-		load @main, => load @modes, => load @styles, loaded
 
 

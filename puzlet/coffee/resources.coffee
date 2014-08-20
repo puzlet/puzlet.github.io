@@ -134,24 +134,52 @@ class CoffeeResource extends Resource
 	
 	load: (callback) ->
 		super =>
-			@createElement()
+			@hasEval = Ace.EvalNode.find(@url).length
+			@Compiler = if @hasEval then CoffeeCompilerEval else CoffeeCompiler
+			@compiler = new @Compiler @url
 			callback?()
 			
-	createElement: ->
+	compile: ->
+		@compiler.compile @content
+		@resultStr = @compiler.resultStr
+		$.event.trigger("compiledCoffeeScript", {url: @url})
+	
+	update: (@content) -> @compile()
+
+
+class CoffeeCompiler
+	
+	constructor: (@url) ->
+		@head = document.head
+	
+	compile: (@content) ->
+		# ZZZ should this be done via eval, rather than append to head?
+		console.log "Compile #{@url} - *NO* eval box"
+		@head.removeChild @element[0] if @findScript()
 		@element = $ "<script>",
 			type: "text/javascript"
 			"data-url": @url
-	
-	compile: ->
 		# ZZZ enhance with try/catch for errors
 		js = CoffeeEvaluator.compile @content
 		@element.text js
 		@head.appendChild @element[0]
-		
-	update: (@content) ->
-		@head.removeChild @element[0]
-		@createElement()
-		@compile()
+	
+	findScript: ->
+		$("script[data-url='#{@url}']").length
+
+
+class CoffeeCompilerEval
+	
+	constructor: (@url) ->
+		@evaluator = new CoffeeEvaluator
+	
+	compile: (@content) ->
+		# Eval node exists
+		console.log "Compile #{@url} for eval box"
+		recompile = true
+		@result = @evaluator.process @content, recompile
+		lf = "\n" 
+		@resultStr = @result.join(lf) + lf
 
 
 class JsonResource extends Resource
@@ -198,7 +226,7 @@ class Resources
 		spec.location = location  # Needed for coffee compiling
 		spec.gistSource = @gistFiles?[url]?.content ? null
 		if @resourceTypes[fileExt] then new @resourceTypes[fileExt][location](spec) else null
-	
+		
 	load: (filter, loaded) ->
 		# When are resources added to DOM?
 		#   * Linked resources: as soon as they are loaded.
