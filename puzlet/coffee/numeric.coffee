@@ -84,7 +84,7 @@ class BlabCoffee
 		new NumericFunctions
 		new BlabPrinter
 		new BlabPlotter
-		#new EvalBoxPlotter
+		new EvalBoxPlotter
 		@mathInitialized = true
 		
 	compile: (code, bare=false) ->
@@ -366,47 +366,44 @@ class EvalBoxPlotter
 		resource = $blab.evaluatingResource
 		return unless resource
 		containers = resource.containers
-		return unless containers.evalNodes.length is 1
+		return unless containers.evalNodes?.length is 1
 		container = containers.evalNodes[0].container
 	
 	clear: ->
-		# ZZZ TEMP
 		#@plotCount = 0
-		container = @getContainer()
-		# ZZZ!!!!!!!!! REINSTATE:
-		container?.find(".eval_flot").remove()
+		@getContainer()?.find(".eval_flot").remove()
 		
 	figure: (params={}) ->
-		resource = $blab.evaluatingResource # ZZZ dup
-		
 		container = @getContainer()
+		return unless container
 		
+		resource = $blab.evaluatingResource # ZZZ dup
 		flotId = "eval_plot_#{resource.url}_#{@plotCount}"
 		
 		@figures[flotId] = new Figure container, flotId, params
 		@plotCount++
 		flotId  # ZZZ need to replace this line in coffee eval box
-		
-	plot: (x, y, params={}) ->
-		# ZZZ perhaps remove class (otherwise could get stragglers)
+	
+	doPlot: (params, plotFcn) ->
 		flotId = params.fig ? @figure params
+		return null unless flotId
 		fig = @figures[flotId]
-		fig.plot(x, y)  # no support yet for params here
+		return null unless fig
+		plotFcn fig
 		if params.fig then null else flotId
+	
+	plot: (x, y, params={}) ->
+		@doPlot params, (fig) -> fig.plot(x, y)  # no support yet for params here
 		
 	plotSeries: (series, params={}) ->
-		# ZZZ dup code
-		flotId = params.fig ? @figure params
-		fig = @figures[flotId]
-		fig.plotSeries(series)  # no support yet for params here
-		if params.fig then null else flotId
+		@doPlot params, (fig) -> fig.plotSeries(series)  # no support yet for params here
 
 
 class Figure
 	
 	constructor: (@container, @flotId, @params) ->
 		
-		console.log "flotId", @flotId, @container
+		return unless @container?.length
 		
 		# Plot container (eval box)
 		@w = @container[0].offsetWidth
@@ -428,13 +425,11 @@ class Figure
 		@container.append @flot
 		@flot.hide()
 		@positioned = false
-		#@evaluatingResource = $blab.evaluatingResource
 		@blabEvaluator = $blab.evaluator
 		setTimeout (=> @setPos()), 10	# ZZZ better way them timeout?	e.g., after blab eval?
 		
 	setPos: ->
 		p = null
-		#console.log "*** evaluating", @evaluatingResource
 		for e, idx in @blabEvaluator
 			p = idx if (typeof e is "string") and e is @flotId
 		return unless p
@@ -444,6 +439,8 @@ class Figure
 		@positioned = true
 		
 	plot: (x, y) ->
+		
+		return unless @flot?
 		
 		# ZZZ currently all params must be set at figure creation
 		# ZZZ later, copy params fields to @params
@@ -466,6 +463,7 @@ class Figure
 		
 	plotSeries: (series) ->
 		# ZZZ dup code
+		return unless @flot?
 		@params.series ?= {color: "#55f"}
 		@flot.show() unless @positioned
 		$.plot @flot, series, @params

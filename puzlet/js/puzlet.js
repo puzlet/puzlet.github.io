@@ -33,6 +33,7 @@
       new NumericFunctions;
       new BlabPrinter;
       new BlabPlotter;
+      new EvalBoxPlotter;
       return this.mathInitialized = true;
     };
 
@@ -426,22 +427,21 @@
     }
 
     EvalBoxPlotter.prototype.getContainer = function() {
-      var container, containers, resource;
+      var container, containers, resource, _ref;
       resource = $blab.evaluatingResource;
       if (!resource) {
         return;
       }
       containers = resource.containers;
-      if (containers.evalNodes.length !== 1) {
+      if (((_ref = containers.evalNodes) != null ? _ref.length : void 0) !== 1) {
         return;
       }
       return container = containers.evalNodes[0].container;
     };
 
     EvalBoxPlotter.prototype.clear = function() {
-      var container;
-      container = this.getContainer();
-      return container != null ? container.find(".eval_flot").remove() : void 0;
+      var _ref;
+      return (_ref = this.getContainer()) != null ? _ref.find(".eval_flot").remove() : void 0;
     };
 
     EvalBoxPlotter.prototype.figure = function(params) {
@@ -449,22 +449,28 @@
       if (params == null) {
         params = {};
       }
-      resource = $blab.evaluatingResource;
       container = this.getContainer();
+      if (!container) {
+        return;
+      }
+      resource = $blab.evaluatingResource;
       flotId = "eval_plot_" + resource.url + "_" + this.plotCount;
       this.figures[flotId] = new Figure(container, flotId, params);
       this.plotCount++;
       return flotId;
     };
 
-    EvalBoxPlotter.prototype.plot = function(x, y, params) {
+    EvalBoxPlotter.prototype.doPlot = function(params, plotFcn) {
       var fig, flotId, _ref;
-      if (params == null) {
-        params = {};
-      }
       flotId = (_ref = params.fig) != null ? _ref : this.figure(params);
+      if (!flotId) {
+        return null;
+      }
       fig = this.figures[flotId];
-      fig.plot(x, y);
+      if (!fig) {
+        return null;
+      }
+      plotFcn(fig);
       if (params.fig) {
         return null;
       } else {
@@ -472,19 +478,22 @@
       }
     };
 
-    EvalBoxPlotter.prototype.plotSeries = function(series, params) {
-      var fig, flotId, _ref;
+    EvalBoxPlotter.prototype.plot = function(x, y, params) {
       if (params == null) {
         params = {};
       }
-      flotId = (_ref = params.fig) != null ? _ref : this.figure(params);
-      fig = this.figures[flotId];
-      fig.plotSeries(series);
-      if (params.fig) {
-        return null;
-      } else {
-        return flotId;
+      return this.doPlot(params, function(fig) {
+        return fig.plot(x, y);
+      });
+    };
+
+    EvalBoxPlotter.prototype.plotSeries = function(series, params) {
+      if (params == null) {
+        params = {};
       }
+      return this.doPlot(params, function(fig) {
+        return fig.plotSeries(series);
+      });
     };
 
     return EvalBoxPlotter;
@@ -494,12 +503,14 @@
   Figure = (function() {
 
     function Figure(container, flotId, params) {
-      var _ref, _ref1,
+      var _ref, _ref1, _ref2,
         _this = this;
       this.container = container;
       this.flotId = flotId;
       this.params = params;
-      console.log("flotId", this.flotId, this.container);
+      if (!((_ref = this.container) != null ? _ref.length : void 0)) {
+        return;
+      }
       this.w = this.container[0].offsetWidth;
       this.flot = $("<div>", {
         id: this.flotId,
@@ -507,8 +518,8 @@
         css: {
           position: "absolute",
           top: "0px",
-          width: ((_ref = this.params.width) != null ? _ref : this.w - 50) + "px",
-          height: ((_ref1 = this.params.height) != null ? _ref1 : 150) + "px",
+          width: ((_ref1 = this.params.width) != null ? _ref1 : this.w - 50) + "px",
+          height: ((_ref2 = this.params.height) != null ? _ref2 : 150) + "px",
           margin: "0px",
           marginLeft: "30px",
           marginTop: "20px",
@@ -549,6 +560,9 @@
 
     Figure.prototype.plot = function(x, y) {
       var d, line, nLines, v, _base, _i, _len, _ref;
+      if (this.flot == null) {
+        return;
+      }
       if ((_ref = (_base = this.params).series) == null) {
         _base.series = {
           color: "#55f"
@@ -580,6 +594,9 @@
 
     Figure.prototype.plotSeries = function(series) {
       var _base, _ref;
+      if (this.flot == null) {
+        return;
+      }
       if ((_ref = (_base = this.params).series) == null) {
         _base.series = {
           color: "#55f"
@@ -2816,8 +2833,8 @@
         return _this.loadGist(function() {
           return _this.loadResourceList(function() {
             return _this.loadHtmlCss(function() {
-              return _this.loadAce(function() {
-                return _this.loadScripts(function() {
+              return _this.loadScripts(function() {
+                return _this.loadAce(function() {
                   return _this.done();
                 });
               });
@@ -2874,6 +2891,16 @@
       });
     };
 
+    Loader.prototype.loadScripts = function(callback) {
+      var _this = this;
+      return this.resources.load(["js", "coffee", "py", "m"], function() {
+        _this.compileCoffee(function(coffee) {
+          return !coffee.hasEval();
+        });
+        return typeof callback === "function" ? callback() : void 0;
+      });
+    };
+
     Loader.prototype.loadAce = function(callback) {
       var load,
         _this = this;
@@ -2883,22 +2910,21 @@
           return typeof callback === "function" ? callback() : void 0;
         });
       };
-      return new Ace.Resources(load, callback);
-    };
-
-    Loader.prototype.loadScripts = function(callback) {
-      var _this = this;
-      return this.resources.load(["js", "coffee", "py", "m"], function() {
+      return new Ace.Resources(load, function() {
         _this.resources.render();
-        _this.compileCoffee();
+        _this.compileCoffee(function(coffee) {
+          return coffee.hasEval();
+        });
         return typeof callback === "function" ? callback() : void 0;
       });
     };
 
-    Loader.prototype.compileCoffee = function() {
-      var coffee, _i, _len, _ref, _results;
-      new EvalBoxPlotter;
-      _ref = this.resources.select("coffee");
+    Loader.prototype.compileCoffee = function(coffeeFilter) {
+      var coffee, filter, _i, _len, _ref, _results;
+      filter = function(resource) {
+        return resource.isType("coffee") && coffeeFilter(resource);
+      };
+      _ref = this.resources.select(filter);
       _results = [];
       for (_i = 0, _len = _ref.length; _i < _len; _i++) {
         coffee = _ref[_i];
