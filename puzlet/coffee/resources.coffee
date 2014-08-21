@@ -444,7 +444,7 @@ class Gist
 			data: JSON.stringify(ajaxData)
 			success: (data) ->
 				console.log "Created gist", data.html_url, data
-				blabUrl = "?gist="+data.id  # data.html_url
+				blabUrl = "/?gist="+data.id  # data.html_url
 				window.location = blabUrl
 			dataType: "json"
 		})

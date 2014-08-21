@@ -245,7 +245,7 @@ publicInterface = ->
 init = ->
 	publicInterface()
 	blab = window.location.pathname.split("/")[1]  # ZZZ more robust way?
-	return unless blab and blab isnt "puzlet.github.io"
+	#return unless blab and blab isnt "puzlet.github.io"
 	page = new Page blab
 	render = (wikyHtml) -> page.render wikyHtml
 	ready = -> page.ready loader.resources, loader.gist.id

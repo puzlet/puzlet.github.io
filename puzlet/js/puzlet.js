@@ -1978,7 +1978,7 @@
         success: function(data) {
           var blabUrl;
           console.log("Created gist", data.html_url, data);
-          blabUrl = "?gist=" + data.id;
+          blabUrl = "/?gist=" + data.id;
           return window.location = blabUrl;
         },
         dataType: "json"
@@ -3117,9 +3117,6 @@
     var blab, loader, page, ready, render;
     publicInterface();
     blab = window.location.pathname.split("/")[1];
-    if (!(blab && blab !== "puzlet.github.io")) {
-      return;
-    }
     page = new Page(blab);
     render = function(wikyHtml) {
       return page.render(wikyHtml);
