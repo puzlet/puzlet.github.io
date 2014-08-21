@@ -2314,7 +2314,7 @@
       return command({
         name: "save",
         bindKey: {
-          win: "Ctrl-s",
+          win: "Alt-s",
           mac: "Ctrl-s",
           sender: "editor"
         },
