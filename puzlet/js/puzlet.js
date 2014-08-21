@@ -33,7 +33,6 @@
       new NumericFunctions;
       new BlabPrinter;
       new BlabPlotter;
-      new EvalBoxPlotter;
       return this.mathInitialized = true;
     };
 
@@ -400,10 +399,6 @@
 
     function EvalBoxPlotter() {
       var _this = this;
-      this.container = $("#result_container");
-      this.container.css({
-        position: "absolute"
-      });
       this.clear();
       numeric.plot = function(x, y, params) {
         if (params == null) {
@@ -427,20 +422,37 @@
         return _this.plotSeries(series, params);
       };
       this.figures = [];
+      this.plotCount = 0;
     }
 
+    EvalBoxPlotter.prototype.getContainer = function() {
+      var container, containers, resource;
+      resource = $blab.evaluatingResource;
+      if (!resource) {
+        return;
+      }
+      containers = resource.containers;
+      if (containers.evalNodes.length !== 1) {
+        return;
+      }
+      return container = containers.evalNodes[0].container;
+    };
+
     EvalBoxPlotter.prototype.clear = function() {
-      this.plotCount = 0;
-      return $(".eval_flot").remove();
+      var container;
+      container = this.getContainer();
+      return container != null ? container.find(".eval_flot").remove() : void 0;
     };
 
     EvalBoxPlotter.prototype.figure = function(params) {
-      var flotId;
+      var container, flotId, resource;
       if (params == null) {
         params = {};
       }
-      flotId = "eval_plot_" + this.plotCount;
-      this.figures[flotId] = new Figure(this.container, flotId, params);
+      resource = $blab.evaluatingResource;
+      container = this.getContainer();
+      flotId = "eval_plot_" + resource.url + "_" + this.plotCount;
+      this.figures[flotId] = new Figure(container, flotId, params);
       this.plotCount++;
       return flotId;
     };
@@ -487,6 +499,7 @@
       this.container = container;
       this.flotId = flotId;
       this.params = params;
+      console.log("flotId", this.flotId, this.container);
       this.w = this.container[0].offsetWidth;
       this.flot = $("<div>", {
         id: this.flotId,
@@ -505,6 +518,7 @@
       this.container.append(this.flot);
       this.flot.hide();
       this.positioned = false;
+      this.blabEvaluator = $blab.evaluator;
       setTimeout((function() {
         return _this.setPos();
       }), 10);
@@ -513,7 +527,7 @@
     Figure.prototype.setPos = function() {
       var e, idx, p, _i, _len, _ref, _ref1;
       p = null;
-      _ref = $blab.evaluator;
+      _ref = this.blabEvaluator;
       for (idx = _i = 0, _len = _ref.length; _i < _len; idx = ++_i) {
         e = _ref[idx];
         if ((typeof e === "string") && e === this.flotId) {
@@ -1489,6 +1503,7 @@
     };
 
     CoffeeResource.prototype.compile = function() {
+      $blab.evaluatingResource = this;
       this.compiler.compile(this.content);
       this.resultStr = this.compiler.resultStr;
       return $.event.trigger("compiledCoffeeScript", {
@@ -2293,16 +2308,48 @@
     CoffeeEval.prototype.idPrefix = "ace_eval_";
 
     function CoffeeEval(spec) {
+      var _this = this;
       this.spec = spec;
       CoffeeEval.__super__.constructor.call(this, this.spec);
+      this.container.css({
+        position: "relative",
+        border: "1px dashed black"
+      });
       this.editorContainer.css({
         background: "white"
       });
       this.renderer.setShowGutter(false);
-      this.container.css({
-        border: "1px dashed black"
-      });
+      this.set = function(orig) {
+        var newCode;
+        _this.orig = orig;
+        if (!(_this.editor && _this.orig)) {
+          return;
+        }
+        newCode = _this.orig.substring(0, _this.orig.length - 1) + _this.plotLineFeeds();
+        return _this.session().setValue(newCode);
+      };
     }
+
+    CoffeeEval.prototype.plotLineFeeds = function() {
+      var b, i, idx, lfs, n, numLines, _i, _j, _len, _ref, _ref1;
+      n = null;
+      numLines = $blab.evaluator.length;
+      _ref = $blab.evaluator;
+      for (idx = _i = 0, _len = _ref.length; _i < _len; idx = ++_i) {
+        b = _ref[idx];
+        if ((typeof b === "string") && b.indexOf("eval_plot") !== -1) {
+          n = idx;
+        }
+      }
+      if (!(n && (numLines < n + 8))) {
+        return "";
+      }
+      lfs = "";
+      for (i = _j = 1, _ref1 = n - numLines + 8; 1 <= _ref1 ? _j <= _ref1 : _j >= _ref1; i = 1 <= _ref1 ? ++_j : --_j) {
+        lfs += "\n";
+      }
+      return lfs;
+    };
 
     return CoffeeEval;
 
@@ -2753,6 +2800,8 @@
       }, {
         url: "/puzlet/js/numeric-1.2.6.js"
       }, {
+        url: "/puzlet/js/jquery.flot.min.js"
+      }, {
         url: "/puzlet/js/compile.js"
       }
     ];
@@ -2767,8 +2816,8 @@
         return _this.loadGist(function() {
           return _this.loadResourceList(function() {
             return _this.loadHtmlCss(function() {
-              return _this.loadScripts(function() {
-                return _this.loadAce(function() {
+              return _this.loadAce(function() {
+                return _this.loadScripts(function() {
                   return _this.done();
                 });
               });
@@ -2825,14 +2874,6 @@
       });
     };
 
-    Loader.prototype.loadScripts = function(callback) {
-      var _this = this;
-      return this.resources.load(["js", "coffee", "py", "m"], function() {
-        _this.compileCoffee();
-        return typeof callback === "function" ? callback() : void 0;
-      });
-    };
-
     Loader.prototype.loadAce = function(callback) {
       var load,
         _this = this;
@@ -2845,8 +2886,18 @@
       return new Ace.Resources(load, callback);
     };
 
+    Loader.prototype.loadScripts = function(callback) {
+      var _this = this;
+      return this.resources.load(["js", "coffee", "py", "m"], function() {
+        _this.resources.render();
+        _this.compileCoffee();
+        return typeof callback === "function" ? callback() : void 0;
+      });
+    };
+
     Loader.prototype.compileCoffee = function() {
       var coffee, _i, _len, _ref, _results;
+      new EvalBoxPlotter;
       _ref = this.resources.select("coffee");
       _results = [];
       for (_i = 0, _len = _ref.length; _i < _len; _i++) {
@@ -2893,7 +2944,6 @@
     Page.prototype.ready = function(resources, gistId) {
       this.resources = resources;
       this.gistId = gistId;
-      this.resources.render();
       new MathJaxProcessor;
       new FavIcon;
       return new GithubRibbon(this.container, this.blab, this.gistId);

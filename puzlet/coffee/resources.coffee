@@ -160,12 +160,11 @@ class CoffeeResource extends Resource
 	load: (callback) ->
 		super =>
 			@Compiler = if @hasEval() then CoffeeCompilerEval else CoffeeCompiler
-#			@Compiler = if @containers.evals().length then CoffeeCompilerEval else CoffeeCompiler
-#			@Compiler = if @evalContainers().length then CoffeeCompilerEval else CoffeeCompiler
 			@compiler = new @Compiler @url
 			callback?()
 			
 	compile: ->
+		$blab.evaluatingResource = this
 		@compiler.compile @content
 		@resultStr = @compiler.resultStr
 		$.event.trigger("compiledCoffeeScript", {url: @url})

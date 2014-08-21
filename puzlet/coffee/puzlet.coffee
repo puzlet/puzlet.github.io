@@ -43,7 +43,9 @@ class Loader
 		{url: "/puzlet/js/coffeescript.js"}
 		{url: "/puzlet/js/acorn.js"}
 		{url: "/puzlet/js/numeric-1.2.6.js"}
+		{url: "/puzlet/js/jquery.flot.min.js"}
 		{url: "/puzlet/js/compile.js"}
+		
 	]
 	# {url: "/puzlet/js/jquery.flot.min.js"}
 	# {url: "http://code.jquery.com/ui/1.9.2/themes/smoothness/jquery-ui.css"}
@@ -51,7 +53,7 @@ class Loader
 	
 	constructor: (@blab, @render, @done) ->
 		@resources = new Resources
-		@loadCoreResources => @loadGist => @loadResourceList => @loadHtmlCss => @loadScripts => @loadAce => @done()
+		@loadCoreResources => @loadGist => @loadResourceList => @loadHtmlCss => @loadAce => @loadScripts => @done()
 	
 	# Dynamically load and run jQuery and Wiky.
 	loadCoreResources: (callback) ->
@@ -86,6 +88,13 @@ class Loader
 			@render html.content for html in @resources.select("html")
 			callback?()
 	
+	# Ace loaded before other scripts because plot results can be assigned to eval box.
+	loadAce: (callback) ->
+		load = (resources, callback) =>
+			@resources.add resources
+			@resources.load ["js", "css"], => callback?()
+		new Ace.Resources load, callback
+	
 	# Async load js and coffee; and py/m:
 	#   * external js via <script>; auto-appended to dom, and run.
 	#   * blab js and all coffee via ajax; auto-appended to dom (inline) after *all* js/coffee loaded.
@@ -98,16 +107,12 @@ class Loader
 	# Note: for large JS file (even 3rd party), put in repo without gh-pages (web page).
 	loadScripts: (callback) ->
 		@resources.load ["js", "coffee", "py", "m"], =>
+			@resources.render()
 			@compileCoffee()
 			callback?()
 	
-	loadAce: (callback) ->
-		load = (resources, callback) =>
-			@resources.add resources
-			@resources.load ["js", "css"], => callback?()
-		new Ace.Resources load, callback
-		
 	compileCoffee: ->
+		new EvalBoxPlotter
 		# ZZZ do external first; then blabs.
 		coffee.compile() for coffee in @resources.select "coffee"
 
@@ -132,7 +137,7 @@ class Page
 		@pageTitle wikyHtml  # ZZZ should work only for first wikyHtml
 		
 	ready: (@resources, @gistId) ->
-		@resources.render()
+		#@resources.render()
 		new MathJaxProcessor  # ZZZ should be after all html rendered?
 		new FavIcon
 		new GithubRibbon @container, @blab, @gistId

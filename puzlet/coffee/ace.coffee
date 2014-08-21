@@ -267,13 +267,30 @@ class CoffeeEval extends Ace.Editor
 	constructor: (@spec) ->
 		super @spec
 		
-		@editorContainer.css background: "white"  # Doesn't work via CSS style sheet.
+		@container.css
+			position: "relative"  # So that plots work inside div
+			border: "1px dashed black"
+		@editorContainer.css background: "white" # Doesn't work via CSS style sheet.
 		@renderer.setShowGutter false
-		@container.css border: "1px dashed black"
 		
-	# ZZZ redefine set method for extra line feed.  also, plot line feeds.
-			
+		#new EvalBoxPlotter @container
 		
+		# Customize set method to remove last linefeed so that height conistent with coffee editor.
+		@set = (@orig) =>
+			return unless @editor and @orig
+			# Remove last \n, and append line feeds if plot at bottom.
+			newCode = @orig.substring(0, @orig.length-1) + @plotLineFeeds()
+			@session().setValue newCode
+	
+	plotLineFeeds: ->
+		n = null
+		numLines = $blab.evaluator.length
+		for b, idx in $blab.evaluator
+			n = idx if (typeof b is "string") and b.indexOf("eval_plot") isnt -1
+		return "" unless n and (numLines < n+8)
+		lfs = ""
+		lfs += "\n" for i in [1..(n - numLines + 8)]
+		lfs
 
 
 class Ace.Languages

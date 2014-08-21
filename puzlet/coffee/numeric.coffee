@@ -84,7 +84,7 @@ class BlabCoffee
 		new NumericFunctions
 		new BlabPrinter
 		new BlabPlotter
-		new EvalBoxPlotter
+		#new EvalBoxPlotter
 		@mathInitialized = true
 		
 	compile: (code, bare=false) ->
@@ -353,23 +353,37 @@ class BlabPlotter
 
 class EvalBoxPlotter
 	
-	constructor: ->
-		@container = $ "#result_container"
-		@container.css position: "absolute"
+	constructor: -> #(@container) ->
 		@clear()
 		numeric.plot = (x, y, params={}) => @plot(x, y, params)
 		numeric.plot.clear = => @clear()
 		numeric.figure = (params={}) => @figure params
 		numeric.plotSeries = (series, params={}) => @plotSeries(series, params)
 		@figures = []
-		
-	clear: ->
 		@plotCount = 0
-		$(".eval_flot").remove()
+	
+	getContainer: ->
+		resource = $blab.evaluatingResource
+		return unless resource
+		containers = resource.containers
+		return unless containers.evalNodes.length is 1
+		container = containers.evalNodes[0].container
+	
+	clear: ->
+		# ZZZ TEMP
+		#@plotCount = 0
+		container = @getContainer()
+		# ZZZ!!!!!!!!! REINSTATE:
+		container?.find(".eval_flot").remove()
 		
 	figure: (params={}) ->
-		flotId = "eval_plot_"+@plotCount
-		@figures[flotId] = new Figure @container, flotId, params
+		resource = $blab.evaluatingResource # ZZZ dup
+		
+		container = @getContainer()
+		
+		flotId = "eval_plot_#{resource.url}_#{@plotCount}"
+		
+		@figures[flotId] = new Figure container, flotId, params
 		@plotCount++
 		flotId  # ZZZ need to replace this line in coffee eval box
 		
@@ -392,6 +406,8 @@ class Figure
 	
 	constructor: (@container, @flotId, @params) ->
 		
+		console.log "flotId", @flotId, @container
+		
 		# Plot container (eval box)
 		@w = @container[0].offsetWidth
 		
@@ -412,11 +428,14 @@ class Figure
 		@container.append @flot
 		@flot.hide()
 		@positioned = false
+		#@evaluatingResource = $blab.evaluatingResource
+		@blabEvaluator = $blab.evaluator
 		setTimeout (=> @setPos()), 10	# ZZZ better way them timeout?	e.g., after blab eval?
 		
 	setPos: ->
 		p = null
-		for e, idx in $blab.evaluator
+		#console.log "*** evaluating", @evaluatingResource
+		for e, idx in @blabEvaluator
 			p = idx if (typeof e is "string") and e is @flotId
 		return unless p
 		@flot.css top: "#{p*22}px"
