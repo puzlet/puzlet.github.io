@@ -2,20 +2,14 @@ Ace = {}
 
 class Ace.Node
 	
-	@fileAttr: null  # Override in subclass
-	
-	@find: (url) -> $ ("div[#{@fileAttr}='#{url}']")
-	
-	constructor: (@container, @findResource) ->
+	constructor: (@container, @resource) ->
 		@getSpec()
 		@create()
 		
 	# Specialize in subclass
 	getSpec: ->
-		fileAttr = this.constructor.fileAttr  # Gets class fileAttr
-		@filename = @container.attr fileAttr
-		@resource = @findResource @filename
 		return unless @resource
+		@filename = @resource.url
 		@lang = Ace.Languages.langName @resource.fileExt
 		@spec =
 			container: @container
@@ -27,8 +21,6 @@ class Ace.Node
 
 class Ace.EditorNode extends Ace.Node
 	
-	@fileAttr: "data-file"
-	
 	getSpec: ->
 		super()
 		return unless @resource
@@ -37,12 +29,10 @@ class Ace.EditorNode extends Ace.Node
 		
 	create: ->
 		Editor = Ace.Languages.get(@spec.lang).Editor ? Ace.Editor
-		new Editor @spec
+		@editor = new Editor @spec
 
 
 class Ace.EvalNode extends Ace.Node
-	
-	@fileAttr: "data-eval"
 	
 	create: ->
 		# Initially, support only CoffeeScript eval.
@@ -52,44 +42,12 @@ class Ace.EvalNode extends Ace.Node
 		
 		@editor = new CoffeeEval @spec
 		@setCode()
-		# ZZZ handle via resource event?
+		# ZZZ handle via resource event? (need resource listener)
 		$(document).on "compiledCoffeeScript", (ev, data) =>
 			@setCode() if data.url is @filename
 			
 	setCode: ->
 		@editor.set @resource.resultStr
-
-
-class Ace.Nodes
-	
-	# Abstract class for Ace.Editors and Ace.Evals
-	
-	Node: Ace.Node
-	
-	constructor:  (@findResource) ->
-		@fileAttr = @Node.fileAttr
-		@containers = $ "div[#{@fileAttr}]"
-		@nodes = (@createNode $(container) for container in @containers)
-		
-	createNode: (container) ->
-		new @Node container, @findResource
-
-
-# ZZZ why is $pz.codeNode needed?
-class Ace.Editors extends Ace.Nodes
-	
-	Node: Ace.EditorNode
-	
-	constructor: (@findResource) ->
-		$pz.AceIdentifiers = Ace.Identifiers
-		super @findResource
-		$pz.codeNode = {}
-		$pz.codeNode[editor.id] = editor for editor in @nodes
-
-
-class Ace.Evals extends Ace.Nodes
-	
-	Node: Ace.EvalNode
 
 
 class Ace.Editor

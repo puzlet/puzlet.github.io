@@ -7,6 +7,7 @@ class Resource
 		@fileExt = Resource.getFileExt @url
 		@loaded = false
 		@head = document.head
+		@containers = new ResourceContainers this
 	
 	load: (callback, type="text") ->
 		# Default file load method.
@@ -29,6 +30,10 @@ class Resource
 	
 	update: (@content) ->
 		console.log "No update method for #{@url}"
+		
+	hasEval: -> @containers.evals().length
+	
+	render: -> @containers.render()
 	
 	@getFileExt: (url) ->
 		a = document.createElement "a"
@@ -44,6 +49,26 @@ class Resource
 				for type in types
 					return true if resource.isType type
 				false
+
+
+class ResourceContainers
+	
+	# <div> attribute names for source and eval nodes. 
+	fileContainerAttr: "data-file"
+	evalContainerAttr: "data-eval"
+	
+	constructor: (@resource) ->
+		@url = @resource.url
+	
+	render: ->
+		@fileNodes = (new Ace.EditorNode $(node), @resource for node in @files())
+		@evalNodes = (new Ace.EvalNode $(node), @resource for node in @evals())
+		$pz.codeNode ?= {}
+		$pz.codeNode[file.editor.id] = file.editor for file in @files
+	
+	files: -> $("div[#{@fileContainerAttr}='#{@url}']")
+	
+	evals: -> $("div[#{@evalContainerAttr}='#{@url}']")
 
 
 class HtmlResource extends Resource
@@ -134,8 +159,9 @@ class CoffeeResource extends Resource
 	
 	load: (callback) ->
 		super =>
-			@hasEval = Ace.EvalNode.find(@url).length
-			@Compiler = if @hasEval then CoffeeCompilerEval else CoffeeCompiler
+			@Compiler = if @hasEval() then CoffeeCompilerEval else CoffeeCompiler
+#			@Compiler = if @containers.evals().length then CoffeeCompilerEval else CoffeeCompiler
+#			@Compiler = if @evalContainers().length then CoffeeCompilerEval else CoffeeCompiler
 			@compiler = new @Compiler @url
 			callback?()
 			
@@ -145,41 +171,6 @@ class CoffeeResource extends Resource
 		$.event.trigger("compiledCoffeeScript", {url: @url})
 	
 	update: (@content) -> @compile()
-
-
-class CoffeeCompiler
-	
-	constructor: (@url) ->
-		@head = document.head
-	
-	compile: (@content) ->
-		# ZZZ should this be done via eval, rather than append to head?
-		console.log "Compile #{@url} - *NO* eval box"
-		@head.removeChild @element[0] if @findScript()
-		@element = $ "<script>",
-			type: "text/javascript"
-			"data-url": @url
-		# ZZZ enhance with try/catch for errors
-		js = CoffeeEvaluator.compile @content
-		@element.text js
-		@head.appendChild @element[0]
-	
-	findScript: ->
-		$("script[data-url='#{@url}']").length
-
-
-class CoffeeCompilerEval
-	
-	constructor: (@url) ->
-		@evaluator = new CoffeeEvaluator
-	
-	compile: (@content) ->
-		# Eval node exists
-		console.log "Compile #{@url} for eval box"
-		recompile = true
-		@result = @evaluator.process @content, recompile
-		lf = "\n" 
-		@resultStr = @result.join(lf) + lf
 
 
 class JsonResource extends Resource
@@ -266,5 +257,190 @@ class Resources
 		return resource for resource in @resources when resource.url is url
 		return null
 	
+	render: ->
+		resource.render() for resource in @resources
+	
 	setGistResources: (@gistFiles) ->
+		
+
+
+#--- CoffeeScript compiler/evaluator ---#
+
+class CoffeeCompiler
+	
+	constructor: (@url) ->
+		@head = document.head
+	
+	compile: (@content) ->
+		# ZZZ should this be done via eval, rather than append to head?
+		console.log "Compile #{@url} - *NO* eval box"
+		@head.removeChild @element[0] if @findScript()
+		@element = $ "<script>",
+			type: "text/javascript"
+			"data-url": @url
+		# ZZZ enhance with try/catch for errors
+		js = CoffeeEvaluator.compile @content
+		@element.text js
+		@head.appendChild @element[0]
+	
+	findScript: ->
+		$("script[data-url='#{@url}']").length
+
+
+class CoffeeCompilerEval
+	
+	constructor: (@url) ->
+		@evaluator = new CoffeeEvaluator
+	
+	compile: (@content) ->
+		# Eval node exists
+		console.log "Compile #{@url} for eval box"
+		recompile = true
+		@result = @evaluator.process @content, recompile
+		lf = "\n" 
+		@resultStr = @result.join(lf) + lf
+
+
+class CoffeeEvaluator
+	
+	# Works:
+	# switch, class
+	# block comments set $blab.evaluator, but not processed because comment.
+	
+	# What's not supported:
+	# unindented block string literals
+	# unindented objects literals not assigned to variable (sees fields as different objects but perhaps this is correct?)
+	# Destructuring assignments may not work for objects
+	# ZZZ Any other closing chars (like parens) to exclude?
+	
+	noEvalStrings: [")", "]", "}", "\"\"\"", "else", "try", "catch", "finally", "alert", "console.log"]  # ZZZ better name?
+	lf: "\n"
+	
+	# Class properties.
+	@compile = (code, bare=false) ->
+		CoffeeEvaluator.blabCoffee ?= new BlabCoffee
+		js = CoffeeEvaluator.blabCoffee.compile code, bare
+	
+	@eval = (code, js=null) ->
+		# Pass js if don't want to recompile
+		#start = new Date().getTime() / 1000
+		#console.log "Start compile"
+		js = CoffeeEvaluator.compile code unless js
+		#finish1 = new Date().getTime() / 1000
+		eval js
+		#finish2 = new Date().getTime() / 1000
+		#console.log "t_compile/t_eval (s)", finish1-start, finish2-start
+		js
+	
+	constructor: ->
+		@js = null
+	
+	process: (code, recompile=true, stringify=true) ->
+		compile = recompile or not(@evalLines and @js)
+		if compile
+			codeLines = code.split @lf
+			$blab.evaluator = ((if @isComment(l) and stringify then l else "") for l in codeLines)  # Need global so that CoffeeScript.eval can access it.
+			@evalLines = ((if @noEval(l) then "" else "$blab.evaluator[#{n}] = ")+l for l, n in codeLines).join(@lf)
+			js = null
+		else
+			js = @js
+			
+		try
+			#console.log "evalLines", @evalLines
+			@js = CoffeeEvaluator.eval @evalLines, js  # Evaluated lines will be assigned to $blab.evaluator.
+			#CoffeeScript.eval(evalLines.join "\n")  # Evaluated lines will be assigned to $blab.evaluator.
+		catch error
+			console.log "eval error", error
+			
+		return $blab.evaluator unless stringify  # ZZZ perhaps break into 2 steps (separate calls): process then stringify?
+		#result = ("" for e in $blab.evaluator)  # DEBUG
+		result = ((if e is "" then "" else (if e and e.length and e[0] is "#" then e else @objEval(e))) for e in $blab.evaluator)
+#		result = ((if e is "" then "" else (if e and e.length and e[0] is "#" then e else @objEval(e))) for e in $blab.evaluator)
+	
+	noEval: (l) ->
+		# ZZZ check tabs?
+		return true if (l is null) or (l is "") or (l.length is 0) or (l[0] is " ") or (l[0] is "#") or (l.indexOf("#;") isnt -1)
+		# ZZZ don't need trim for comment?
+		for r in @noEvalStrings
+			return true if l.indexOf(r) is 0
+		false
+	
+	isComment: (l) ->
+		return l.length and l[0] is "#" and (l.length<3 or l[0..2] isnt "###")
+	
+	objEval: (e) ->
+		#setMax = false
+		try
+			#start = new Date().getTime() / 1000
+			#console.log "obj eval"
+			#if setMax
+			#	maxProps = 50
+			#	numProps = @numProperties e, maxProps
+				#console.log "objEval", numProps, e
+			#	if numProps>maxProps
+			#		objClass = Object.prototype.toString.call(e).slice(8, -1)
+			#		return (if objClass is "Array" then "[Array]" else "[Object]")
+			line = $inspect2(e, {depth: 2})
+			finish1 = new Date().getTime() / 1000
+			#console.log "obj eval done", finish1-start
+			# line = $inspect(e)
+			line = line.replace(/(\r\n|\n|\r)/gm,"")
+			return line
+		catch error
+			return ""
+
+window.CoffeeEvaluator = CoffeeEvaluator
+
+#--- Gist ---#
+
+class Gist
+	
+	constructor: (@resources) ->
+		@id = @getId()
+		$(document).on "saveGist", => @save()
+	
+	load: (callback) ->
+		unless @id
+			@data = null
+			callback?()
+			return
+		# For https://gist.github.com/:id
+		url = "https://api.github.com/gists/#{@id}"
+		$.get(url, (@data) =>
+			@resources.setGistResources @data.files
+			callback?()
+		)
+	
+	save: ->
+		
+		console.log "Save to anonymous Gist"
+		
+		resources = @resources.select (resource) ->
+			resource.spec.location is "blab"
+		files = {}
+		files[resource.url] = {content: resource.content} for resource in resources
+		
+		ajaxData =
+			description: document.title
+			public: false
+			files: files
+		$.ajax({
+			type: "POST"
+			url: "https://api.github.com/gists"
+			data: JSON.stringify(ajaxData)
+			success: (data) ->
+				console.log "Created gist", data.html_url, data
+				blabUrl = "?gist="+data.id  # data.html_url
+				window.location = blabUrl
+			dataType: "json"
+		})
+		
+	getId: ->
+		query = location.search.slice(1)
+		return null unless query
+		h = query.split "&"
+		p = h?[0].split "="
+		gist = if p.length and p[0] is "gist" then p[1] else null
+		
+
 	

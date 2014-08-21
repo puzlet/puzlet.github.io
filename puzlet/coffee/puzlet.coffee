@@ -51,13 +51,18 @@ class Loader
 	
 	constructor: (@blab, @render, @done) ->
 		@resources = new Resources
-		@loadCoreResources => @getGist => @loadResourceList => @loadHtmlCss => @loadScripts => @loadAce => @done()
+		@loadCoreResources => @loadGist => @loadResourceList => @loadHtmlCss => @loadScripts => @loadAce => @done()
 	
 	# Dynamically load and run jQuery and Wiky.
 	loadCoreResources: (callback) ->
 		@resources.add @coreResources
 		@resources.loadUnloaded callback
 		
+	# Load Gist files - these override blab files
+	loadGist: (callback) ->
+		@gist = new Gist @resources
+		@gist.load callback
+	
 	# Load and parse resources.json.  (Need jQuery to do this; uses ajax $.get.)
 	# Get ordered list of resources (html, css, js, coffee).
 	# Prepend /puzlet/css/puzlet.css to list; prepend script resources (CoffeeScript compiler; math).
@@ -95,59 +100,12 @@ class Loader
 		@resources.load ["js", "coffee", "py", "m"], =>
 			@compileCoffee()
 			callback?()
-			
+	
 	loadAce: (callback) ->
 		load = (resources, callback) =>
 			@resources.add resources
 			@resources.load ["js", "css"], => callback?()
 		new Ace.Resources load, callback
-		$(document).on "saveGist", => @saveGist()
-	
-	saveGist: ->
-		
-		console.log "Save to anonymous Gist"
-		
-		resources = @resources.select (resource) ->
-			resource.spec.location is "blab"
-		files = {}
-		files[resource.url] = {content: resource.content} for resource in resources
-		
-		ajaxData =
-			description: document.title
-			public: false
-			files: files
-		$.ajax({
-			type: "POST"
-			url: "https://api.github.com/gists"
-			data: JSON.stringify(ajaxData)
-			success: (data) ->
-				console.log "Created gist", data.html_url, data
-				blabUrl = "?gist="+data.id  # data.html_url
-				window.location = blabUrl
-				#$(document.body).prepend "<a href='#{blabUrl}' target='_blank'>Saved as Gist</a><br>"
-				#alert "Gist: #{data.html_url}"
-			dataType: "json"
-		})
-		
-	getGist: (callback) ->
-		@gistId = @getGistId()
-		unless @gistId
-			@gistData = null
-			callback?()
-			return
-		# For https://gist.github.com/:id
-		url = "https://api.github.com/gists/#{@gistId}"
-		$.get(url, (@gistData) =>
-			@resources.setGistResources @gistData.files
-			callback?()
-		)
-		
-	getGistId: ->
-		query = location.search.slice(1)
-		return null unless query
-		h = query.split "&"
-		p = h?[0].split "="
-		gist = if p.length and p[0] is "gist" then p[1] else null
 		
 	compileCoffee: ->
 		# ZZZ do external first; then blabs.
@@ -174,9 +132,7 @@ class Page
 		@pageTitle wikyHtml  # ZZZ should work only for first wikyHtml
 		
 	ready: (@resources, @gistId) ->
-		findResource = (url) => @resources.find url
-		new Ace.Editors findResource
-		new Ace.Evals findResource # CoffeeScript Eval boxes
+		@resources.render()
 		new MathJaxProcessor  # ZZZ should be after all html rendered?
 		new FavIcon
 		new GithubRibbon @container, @blab, @gistId
@@ -271,110 +227,24 @@ class MathJaxProcessor
 		queue configElements
 
 
-class CoffeeEvaluator
-	
-	# Works:
-	# switch, class
-	# block comments set $blab.evaluator, but not processed because comment.
-	
-	# What's not supported:
-	# unindented block string literals
-	# unindented objects literals not assigned to variable (sees fields as different objects but perhaps this is correct?)
-	# Destructuring assignments may not work for objects
-	# ZZZ Any other closing chars (like parens) to exclude?
-	
-	noEvalStrings: [")", "]", "}", "\"\"\"", "else", "try", "catch", "finally", "alert", "console.log"]  # ZZZ better name?
-	lf: "\n"
-	
-	# Class properties.
-	@compile = (code, bare=false) ->
-		CoffeeEvaluator.blabCoffee ?= new BlabCoffee
-		js = CoffeeEvaluator.blabCoffee.compile code, bare
-	
-	@eval = (code, js=null) ->
-		# Pass js if don't want to recompile
-		#start = new Date().getTime() / 1000
-		#console.log "Start compile"
-		js = CoffeeEvaluator.compile code unless js
-		#finish1 = new Date().getTime() / 1000
-		eval js
-		#finish2 = new Date().getTime() / 1000
-		#console.log "t_compile/t_eval (s)", finish1-start, finish2-start
-		js
-	
-	constructor: ->
-		@js = null
-	
-	process: (code, recompile=true, stringify=true) ->
-		compile = recompile or not(@evalLines and @js)
-		if compile
-			codeLines = code.split @lf
-			$blab.evaluator = ((if @isComment(l) and stringify then l else "") for l in codeLines)  # Need global so that CoffeeScript.eval can access it.
-			@evalLines = ((if @noEval(l) then "" else "$blab.evaluator[#{n}] = ")+l for l, n in codeLines).join(@lf)
-			js = null
-		else
-			js = @js
-			
-		try
-			#console.log "evalLines", @evalLines
-			@js = CoffeeEvaluator.eval @evalLines, js  # Evaluated lines will be assigned to $blab.evaluator.
-			#CoffeeScript.eval(evalLines.join "\n")  # Evaluated lines will be assigned to $blab.evaluator.
-		catch error
-			console.log "eval error", error
-			
-		return $blab.evaluator unless stringify  # ZZZ perhaps break into 2 steps (separate calls): process then stringify?
-		#result = ("" for e in $blab.evaluator)  # DEBUG
-		result = ((if e is "" then "" else (if e and e.length and e[0] is "#" then e else @objEval(e))) for e in $blab.evaluator)
-#		result = ((if e is "" then "" else (if e and e.length and e[0] is "#" then e else @objEval(e))) for e in $blab.evaluator)
-	
-	noEval: (l) ->
-		# ZZZ check tabs?
-		return true if (l is null) or (l is "") or (l.length is 0) or (l[0] is " ") or (l[0] is "#") or (l.indexOf("#;") isnt -1)
-		# ZZZ don't need trim for comment?
-		for r in @noEvalStrings
-			return true if l.indexOf(r) is 0
-		false
-	
-	isComment: (l) ->
-		return l.length and l[0] is "#" and (l.length<3 or l[0..2] isnt "###")
-	
-	objEval: (e) ->
-		#setMax = false
-		try
-			#start = new Date().getTime() / 1000
-			#console.log "obj eval"
-			#if setMax
-			#	maxProps = 50
-			#	numProps = @numProperties e, maxProps
-				#console.log "objEval", numProps, e
-			#	if numProps>maxProps
-			#		objClass = Object.prototype.toString.call(e).slice(8, -1)
-			#		return (if objClass is "Array" then "[Array]" else "[Object]")
-			line = $inspect2(e, {depth: 2})
-			finish1 = new Date().getTime() / 1000
-			#console.log "obj eval done", finish1-start
-			# line = $inspect(e)
-			line = line.replace(/(\r\n|\n|\r)/gm,"")
-			return line
-		catch error
-			return ""
-	
-
-window.CoffeeEvaluator = CoffeeEvaluator
-
-init = ->
+publicInterface = ->
 	window.$pz = {}
 	window.$blab = {}  # Exported interface.
 	window.console = {} unless window.console?
 	window.console.log = (->) unless window.console.log?
+	$pz.AceIdentifiers = Ace.Identifiers
 	$blab.codeDecoration = true
+	
+
+init = ->
+	publicInterface()
 	blab = window.location.pathname.split("/")[1]  # ZZZ more robust way?
 	return unless blab and blab isnt "puzlet.github.io"
 	page = new Page blab
 	render = (wikyHtml) -> page.render wikyHtml
-	ready = -> page.ready loader.resources, loader.gistId
+	ready = -> page.ready loader.resources, loader.gist.id
 	loader = new Loader blab, render, ready
-	$pz.renderHtml = -> page.rerender()
+	$pz.renderHtml = -> page.rerender()  # ZZZ publicInterface?
 
 init()
 
