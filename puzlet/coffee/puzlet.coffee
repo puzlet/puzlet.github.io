@@ -54,14 +54,13 @@ class Loader
 	constructor: (@blab, @render, @done) ->
 		@resources = new Resources
 		@loadCoreResources => @loadGist => @loadResourceList => @loadHtmlCss => @loadScripts => @loadAce => @done()
-#		@loadCoreResources => @loadGist => @loadResourceList => @loadHtmlCss => @loadAce => @loadScripts => @done()
 	
 	# Dynamically load and run jQuery and Wiky.
 	loadCoreResources: (callback) ->
 		@resources.add @coreResources
 		@resources.loadUnloaded callback
 		
-	# Load Gist files - these override blab files
+	# Load Gist files - these override blab files.
 	loadGist: (callback) ->
 		@gist = new Gist @resources
 		@gist.load callback
@@ -140,7 +139,6 @@ class Page
 		@pageTitle wikyHtml  # ZZZ should work only for first wikyHtml
 		
 	ready: (@resources, @gistId) ->
-		#@resources.render()
 		new MathJaxProcessor  # ZZZ should be after all html rendered?
 		new FavIcon
 		new GithubRibbon @container, @blab, @gistId

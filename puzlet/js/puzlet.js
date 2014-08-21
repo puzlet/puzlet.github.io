@@ -426,36 +426,23 @@
       this.plotCount = 0;
     }
 
-    EvalBoxPlotter.prototype.getContainer = function() {
-      var container, containers, resource, _ref;
+    EvalBoxPlotter.prototype.clear = function() {
+      var resource, _ref;
+      resource = $blab.evaluatingResource;
+      return resource != null ? (_ref = resource.getEvalContainer()) != null ? _ref.find(".eval_flot").remove() : void 0 : void 0;
+    };
+
+    EvalBoxPlotter.prototype.figure = function(params) {
+      var flotId, resource;
+      if (params == null) {
+        params = {};
+      }
       resource = $blab.evaluatingResource;
       if (!resource) {
         return;
       }
-      containers = resource.containers;
-      if (((_ref = containers.evalNodes) != null ? _ref.length : void 0) !== 1) {
-        return;
-      }
-      return container = containers.evalNodes[0].container;
-    };
-
-    EvalBoxPlotter.prototype.clear = function() {
-      var _ref;
-      return (_ref = this.getContainer()) != null ? _ref.find(".eval_flot").remove() : void 0;
-    };
-
-    EvalBoxPlotter.prototype.figure = function(params) {
-      var container, flotId, resource;
-      if (params == null) {
-        params = {};
-      }
-      container = this.getContainer();
-      if (!container) {
-        return;
-      }
-      resource = $blab.evaluatingResource;
       flotId = "eval_plot_" + resource.url + "_" + this.plotCount;
-      this.figures[flotId] = new Figure(container, flotId, params);
+      this.figures[flotId] = new Figure(resource, flotId, params);
       this.plotCount++;
       return flotId;
     };
@@ -502,12 +489,13 @@
 
   Figure = (function() {
 
-    function Figure(container, flotId, params) {
+    function Figure(resource, flotId, params) {
       var _ref, _ref1, _ref2,
         _this = this;
-      this.container = container;
+      this.resource = resource;
       this.flotId = flotId;
       this.params = params;
+      this.container = this.resource.getEvalContainer();
       if (!((_ref = this.container) != null ? _ref.length : void 0)) {
         return;
       }
@@ -529,22 +517,14 @@
       this.container.append(this.flot);
       this.flot.hide();
       this.positioned = false;
-      this.blabEvaluator = $blab.evaluator;
       setTimeout((function() {
         return _this.setPos();
       }), 10);
     }
 
     Figure.prototype.setPos = function() {
-      var e, idx, p, _i, _len, _ref, _ref1;
-      p = null;
-      _ref = this.blabEvaluator;
-      for (idx = _i = 0, _len = _ref.length; _i < _len; idx = ++_i) {
-        e = _ref[idx];
-        if ((typeof e === "string") && e === this.flotId) {
-          p = idx;
-        }
-      }
+      var p, _ref;
+      p = this.resource.compiler.findStr(this.flotId);
       if (!p) {
         return;
       }
@@ -552,21 +532,16 @@
         top: "" + (p * 22) + "px"
       });
       this.flot.show();
-      if ((_ref1 = this.axesLabels) != null) {
-        _ref1.position();
+      if ((_ref = this.axesLabels) != null) {
+        _ref.position();
       }
       return this.positioned = true;
     };
 
     Figure.prototype.plot = function(x, y) {
-      var d, line, nLines, v, _base, _i, _len, _ref;
+      var d, line, nLines, v, _i, _len;
       if (this.flot == null) {
         return;
-      }
-      if ((_ref = (_base = this.params).series) == null) {
-        _base.series = {
-          color: "#55f"
-        };
       }
       if ((y != null ? y.length : void 0) && (y[0].length != null)) {
         nLines = y.length;
@@ -579,17 +554,7 @@
       } else {
         d = [numeric.transpose([x, y])];
       }
-      if (!this.positioned) {
-        this.flot.show();
-      }
-      $.plot(this.flot, d, this.params);
-      if (!this.positioned) {
-        this.flot.hide();
-      }
-      this.axesLabels = new AxesLabels(this.flot, this.params);
-      if (this.positioned) {
-        return this.axesLabels.position();
-      }
+      return this.plotSeries(d);
     };
 
     Figure.prototype.plotSeries = function(series) {
@@ -1268,6 +1233,10 @@
       return this.containers.render();
     };
 
+    Resource.prototype.getEvalContainer = function() {
+      return this.containers.getEvalContainer();
+    };
+
     Resource.getFileExt = function(url) {
       var a, fileExt;
       a = document.createElement("a");
@@ -1339,6 +1308,14 @@
         _results.push($pz.codeNode[file.editor.id] = file.editor);
       }
       return _results;
+    };
+
+    ResourceContainers.prototype.getEvalContainer = function() {
+      var _ref;
+      if (((_ref = this.evalNodes) != null ? _ref.length : void 0) !== 1) {
+        return null;
+      }
+      return this.evalNodes[0].container;
     };
 
     ResourceContainers.prototype.files = function() {
@@ -1757,19 +1734,38 @@
 
   CoffeeCompilerEval = (function() {
 
+    CoffeeCompilerEval.prototype.lf = "\n";
+
     function CoffeeCompilerEval(url) {
       this.url = url;
       this.evaluator = new CoffeeEvaluator;
     }
 
     CoffeeCompilerEval.prototype.compile = function(content) {
-      var lf, recompile;
+      var recompile;
       this.content = content;
       console.log("Compile " + this.url + " for eval box");
       recompile = true;
-      this.result = this.evaluator.process(this.content, recompile);
-      lf = "\n";
-      return this.resultStr = this.result.join(lf) + lf;
+      this.resultArray = this.evaluator.process(this.content, recompile);
+      this.result = this.evaluator.stringify(this.resultArray);
+      return this.resultStr = this.result.join(this.lf) + this.plotLines();
+    };
+
+    CoffeeCompilerEval.prototype.plotLines = function() {
+      var i, l, lfs, _i;
+      l = this.evaluator.numPlotLines(this.resultArray);
+      if (!(l > 0)) {
+        return "";
+      }
+      lfs = "";
+      for (i = _i = 1; 1 <= l ? _i <= l : _i >= l; i = 1 <= l ? ++_i : --_i) {
+        lfs += this.lf;
+      }
+      return lfs;
+    };
+
+    CoffeeCompilerEval.prototype.findStr = function(str) {
+      return this.evaluator.findStr(this.resultArray, str);
     };
 
     return CoffeeCompilerEval;
@@ -1808,14 +1804,12 @@
       this.js = null;
     }
 
-    CoffeeEvaluator.prototype.process = function(code, recompile, stringify) {
-      var codeLines, compile, e, js, l, n, result;
+    CoffeeEvaluator.prototype.process = function(code, recompile) {
+      var codeLines, compile, js, l, n, stringify;
       if (recompile == null) {
         recompile = true;
       }
-      if (stringify == null) {
-        stringify = true;
-      }
+      stringify = true;
       compile = recompile || !(this.evalLines && this.js);
       if (compile) {
         codeLines = code.split(this.lf);
@@ -1846,19 +1840,50 @@
       } catch (error) {
         console.log("eval error", error);
       }
-      if (!stringify) {
-        return $blab.evaluator;
-      }
+      return $blab.evaluator;
+    };
+
+    CoffeeEvaluator.prototype.stringify = function(resultArray) {
+      var e, result;
       return result = (function() {
-        var _i, _len, _ref, _results;
-        _ref = $blab.evaluator;
+        var _i, _len, _results;
         _results = [];
-        for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-          e = _ref[_i];
+        for (_i = 0, _len = resultArray.length; _i < _len; _i++) {
+          e = resultArray[_i];
           _results.push(e === "" ? "" : (e && e.length && e[0] === "#" ? e : this.objEval(e)));
         }
         return _results;
       }).call(this);
+    };
+
+    CoffeeEvaluator.prototype.numPlotLines = function(resultArray) {
+      var b, d, idx, n, numLines, _i, _len;
+      n = null;
+      numLines = resultArray.length;
+      for (idx = _i = 0, _len = resultArray.length; _i < _len; idx = ++_i) {
+        b = resultArray[idx];
+        if ((typeof b === "string") && b.indexOf("eval_plot") !== -1) {
+          n = idx;
+        }
+      }
+      d = n ? n - numLines + 8 : 0;
+      if (d && d > 0) {
+        return d;
+      } else {
+        return 0;
+      }
+    };
+
+    CoffeeEvaluator.prototype.findStr = function(resultArray, str) {
+      var e, idx, p, _i, _len;
+      p = null;
+      for (idx = _i = 0, _len = resultArray.length; _i < _len; idx = ++_i) {
+        e = resultArray[idx];
+        if ((typeof e === "string") && e === str) {
+          p = idx;
+        }
+      }
+      return p;
     };
 
     CoffeeEvaluator.prototype.noEval = function(l) {
@@ -1881,12 +1906,11 @@
     };
 
     CoffeeEvaluator.prototype.objEval = function(e) {
-      var finish1, line;
+      var line;
       try {
         line = $inspect2(e, {
           depth: 2
         });
-        finish1 = new Date().getTime() / 1000;
         line = line.replace(/(\r\n|\n|\r)/gm, "");
         return line;
       } catch (error) {
@@ -2325,7 +2349,6 @@
     CoffeeEval.prototype.idPrefix = "ace_eval_";
 
     function CoffeeEval(spec) {
-      var _this = this;
       this.spec = spec;
       CoffeeEval.__super__.constructor.call(this, this.spec);
       this.container.css({
@@ -2336,37 +2359,7 @@
         background: "white"
       });
       this.renderer.setShowGutter(false);
-      this.set = function(orig) {
-        var newCode;
-        _this.orig = orig;
-        if (!(_this.editor && _this.orig)) {
-          return;
-        }
-        newCode = _this.orig.substring(0, _this.orig.length - 1) + _this.plotLineFeeds();
-        return _this.session().setValue(newCode);
-      };
     }
-
-    CoffeeEval.prototype.plotLineFeeds = function() {
-      var b, i, idx, lfs, n, numLines, _i, _j, _len, _ref, _ref1;
-      n = null;
-      numLines = $blab.evaluator.length;
-      _ref = $blab.evaluator;
-      for (idx = _i = 0, _len = _ref.length; _i < _len; idx = ++_i) {
-        b = _ref[idx];
-        if ((typeof b === "string") && b.indexOf("eval_plot") !== -1) {
-          n = idx;
-        }
-      }
-      if (!(n && (numLines < n + 8))) {
-        return "";
-      }
-      lfs = "";
-      for (i = _j = 1, _ref1 = n - numLines + 8; 1 <= _ref1 ? _j <= _ref1 : _j >= _ref1; i = 1 <= _ref1 ? ++_j : --_j) {
-        lfs += "\n";
-      }
-      return lfs;
-    };
 
     return CoffeeEval;
 

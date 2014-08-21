@@ -35,6 +35,8 @@ class Resource
 	
 	render: -> @containers.render()
 	
+	getEvalContainer: -> @containers.getEvalContainer()
+	
 	@getFileExt: (url) ->
 		a = document.createElement "a"
 		a.href = url
@@ -65,6 +67,11 @@ class ResourceContainers
 		@evalNodes = (new Ace.EvalNode $(node), @resource for node in @evals())
 		$pz.codeNode ?= {}
 		$pz.codeNode[file.editor.id] = file.editor for file in @files
+		
+	getEvalContainer: ->
+		# Get eval container if there is one (and only one).
+		return null unless @evalNodes?.length is 1
+		@evalNodes[0].container
 	
 	files: -> $("div[#{@fileContainerAttr}='#{@url}']")
 	
@@ -288,6 +295,8 @@ class CoffeeCompiler
 
 class CoffeeCompilerEval
 	
+	lf: "\n"
+	
 	constructor: (@url) ->
 		@evaluator = new CoffeeEvaluator
 	
@@ -295,9 +304,18 @@ class CoffeeCompilerEval
 		# Eval node exists
 		console.log "Compile #{@url} for eval box"
 		recompile = true
-		@result = @evaluator.process @content, recompile
-		lf = "\n" 
-		@resultStr = @result.join(lf) + lf
+		@resultArray = @evaluator.process @content, recompile
+		@result = @evaluator.stringify @resultArray
+		@resultStr = @result.join(@lf) + @plotLines()  # ZZZ should stringify produce this directly?
+		
+	plotLines: ->
+		l = @evaluator.numPlotLines @resultArray
+		return "" unless l>0
+		lfs = ""
+		lfs += @lf for i in [1..l]
+		lfs
+		
+	findStr: (str) -> @evaluator.findStr @resultArray, str 
 
 
 class CoffeeEvaluator
@@ -322,40 +340,50 @@ class CoffeeEvaluator
 	
 	@eval = (code, js=null) ->
 		# Pass js if don't want to recompile
-		#start = new Date().getTime() / 1000
-		#console.log "Start compile"
 		js = CoffeeEvaluator.compile code unless js
-		#finish1 = new Date().getTime() / 1000
 		eval js
-		#finish2 = new Date().getTime() / 1000
-		#console.log "t_compile/t_eval (s)", finish1-start, finish2-start
 		js
 	
 	constructor: ->
 		@js = null
 	
-	process: (code, recompile=true, stringify=true) ->
+	process: (code, recompile=true) -> #, stringify=true) ->
+		stringify = true #ZZZ test
 		compile = recompile or not(@evalLines and @js)
 		if compile
 			codeLines = code.split @lf
-			$blab.evaluator = ((if @isComment(l) and stringify then l else "") for l in codeLines)  # Need global so that CoffeeScript.eval can access it.
+			# $blab.evaluator needs to be global so that CoffeeScript.eval can access it.
+			$blab.evaluator = ((if @isComment(l) and stringify then l else "") for l in codeLines)
 			@evalLines = ((if @noEval(l) then "" else "$blab.evaluator[#{n}] = ")+l for l, n in codeLines).join(@lf)
 			js = null
 		else
 			js = @js
 			
 		try
-			#console.log "evalLines", @evalLines
 			@js = CoffeeEvaluator.eval @evalLines, js  # Evaluated lines will be assigned to $blab.evaluator.
-			#CoffeeScript.eval(evalLines.join "\n")  # Evaluated lines will be assigned to $blab.evaluator.
 		catch error
 			console.log "eval error", error
 			
-		return $blab.evaluator unless stringify  # ZZZ perhaps break into 2 steps (separate calls): process then stringify?
-		#result = ("" for e in $blab.evaluator)  # DEBUG
-		result = ((if e is "" then "" else (if e and e.length and e[0] is "#" then e else @objEval(e))) for e in $blab.evaluator)
-#		result = ((if e is "" then "" else (if e and e.length and e[0] is "#" then e else @objEval(e))) for e in $blab.evaluator)
-	
+		return $blab.evaluator #unless stringify  # ZZZ perhaps break into 2 steps (separate calls): process then stringify?
+		
+	stringify: (resultArray) ->
+		result = ((if e is "" then "" else (if e and e.length and e[0] is "#" then e else @objEval(e))) for e in resultArray)
+		
+	numPlotLines: (resultArray) ->
+		# ZZZ generalize?
+		n = null
+		numLines = resultArray.length
+		for b, idx in resultArray
+			n = idx if (typeof b is "string") and b.indexOf("eval_plot") isnt -1
+		d = if n then (n - numLines + 8) else 0
+		if d and d>0 then d else 0
+		
+	findStr: (resultArray, str) ->
+		p = null
+		for e, idx in resultArray
+			p = idx if (typeof e is "string") and e is str
+		p
+		
 	noEval: (l) ->
 		# ZZZ check tabs?
 		return true if (l is null) or (l is "") or (l.length is 0) or (l[0] is " ") or (l[0] is "#") or (l.indexOf("#;") isnt -1)
@@ -368,21 +396,8 @@ class CoffeeEvaluator
 		return l.length and l[0] is "#" and (l.length<3 or l[0..2] isnt "###")
 	
 	objEval: (e) ->
-		#setMax = false
 		try
-			#start = new Date().getTime() / 1000
-			#console.log "obj eval"
-			#if setMax
-			#	maxProps = 50
-			#	numProps = @numProperties e, maxProps
-				#console.log "objEval", numProps, e
-			#	if numProps>maxProps
-			#		objClass = Object.prototype.toString.call(e).slice(8, -1)
-			#		return (if objClass is "Array" then "[Array]" else "[Object]")
 			line = $inspect2(e, {depth: 2})
-			finish1 = new Date().getTime() / 1000
-			#console.log "obj eval done", finish1-start
-			# line = $inspect(e)
 			line = line.replace(/(\r\n|\n|\r)/gm,"")
 			return line
 		catch error

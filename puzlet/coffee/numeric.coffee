@@ -353,7 +353,7 @@ class BlabPlotter
 
 class EvalBoxPlotter
 	
-	constructor: -> #(@container) ->
+	constructor: ->
 		@clear()
 		numeric.plot = (x, y, params={}) => @plot(x, y, params)
 		numeric.plot.clear = => @clear()
@@ -362,25 +362,16 @@ class EvalBoxPlotter
 		@figures = []
 		@plotCount = 0
 	
-	getContainer: ->
-		resource = $blab.evaluatingResource
-		return unless resource
-		containers = resource.containers
-		return unless containers.evalNodes?.length is 1
-		container = containers.evalNodes[0].container
-	
 	clear: ->
-		#@plotCount = 0
-		@getContainer()?.find(".eval_flot").remove()
+		resource = $blab.evaluatingResource
+		resource?.getEvalContainer()?.find(".eval_flot").remove()
 		
 	figure: (params={}) ->
-		container = @getContainer()
-		return unless container
-		
-		resource = $blab.evaluatingResource # ZZZ dup
+		resource = $blab.evaluatingResource
+		return unless resource
 		flotId = "eval_plot_#{resource.url}_#{@plotCount}"
 		
-		@figures[flotId] = new Figure container, flotId, params
+		@figures[flotId] = new Figure resource, flotId, params
 		@plotCount++
 		flotId  # ZZZ need to replace this line in coffee eval box
 	
@@ -401,8 +392,9 @@ class EvalBoxPlotter
 
 class Figure
 	
-	constructor: (@container, @flotId, @params) ->
+	constructor: (@resource, @flotId, @params) ->
 		
+		@container = @resource.getEvalContainer()
 		return unless @container?.length
 		
 		# Plot container (eval box)
@@ -425,13 +417,10 @@ class Figure
 		@container.append @flot
 		@flot.hide()
 		@positioned = false
-		@blabEvaluator = $blab.evaluator
 		setTimeout (=> @setPos()), 10	# ZZZ better way them timeout?	e.g., after blab eval?
 		
 	setPos: ->
-		p = null
-		for e, idx in @blabEvaluator
-			p = idx if (typeof e is "string") and e is @flotId
+		p = @resource.compiler.findStr @flotId  # ZZZ finds *last* one
 		return unless p
 		@flot.css top: "#{p*22}px"
 		@flot.show()  # Delay showing div until set position
@@ -445,7 +434,7 @@ class Figure
 		# ZZZ currently all params must be set at figure creation
 		# ZZZ later, copy params fields to @params
 		#return unless y?.length
-		@params.series ?= {color: "#55f"}
+		#@params.series ?= {color: "#55f"}
 		if y?.length and y[0].length?
 			nLines = y.length
 			d = []
@@ -454,12 +443,7 @@ class Figure
 				d.push v
 		else
 			d = [numeric.transpose([x, y])]
-		
-		@flot.show() unless @positioned
-		$.plot @flot, d, @params
-		@flot.hide() unless @positioned
-		@axesLabels = new AxesLabels @flot, @params
-		@axesLabels.position() if @positioned
+		@plotSeries d
 		
 	plotSeries: (series) ->
 		# ZZZ dup code
