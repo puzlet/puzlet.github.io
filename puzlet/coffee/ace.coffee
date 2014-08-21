@@ -245,7 +245,7 @@ class Ace.Editor
 		command
 			name: "save"
 			bindKey:
-				win: "Alt-s"
+				win: "Ctrl-s"
 				mac: "Ctrl-s"
 				sender: "editor"
 			exec: (env, args, request) =>
