@@ -453,12 +453,12 @@ class Gist
 		
 		if @id and @username
 			if @data.owner?.login is @username
-				@patch()
+				@patch @ajaxData()
 			else
 				console.log "Fork..."
 				@fork((data) => 
 					@id = data.id 
-					@patch(=> @redirect())
+					@patch @ajaxData(), (=> @redirect())
 				)
 		else
 			@create()
@@ -482,11 +482,11 @@ class Gist
 				@setDescription(=> @redirect())
 			dataType: "json"
 		
-	patch: (callback) ->
+	patch: (ajaxData, callback) ->
 		$.ajax
 			type: "PATCH"
 			url: "#{@api}/#{@id}"
-			data: @ajaxData()
+			data: ajaxData
 			beforeSend: (xhr) => @authBeforeSend(xhr)
 			success: (data) ->
 				console.log "Edited Gist", data
@@ -504,15 +504,8 @@ class Gist
 			dataType: "json"
 			
 	setDescription: (callback) ->
-		$.ajax
-			type: "PATCH"
-			url: "#{@api}/#{@id}"
-			data: JSON.stringify(description: @description())
-			beforeSend: (xhr) => @authBeforeSend(xhr)
-			success: (data) =>
-				console.log "Set Gist description", data
-				callback?()
-			dataType: "json"
+		ajaxData = JSON.stringify(description: @description())
+		@patch ajaxData, callback
 		
 	description: ->
 		description = document.title

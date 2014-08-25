@@ -1986,14 +1986,14 @@
       }
       if (this.id && this.username) {
         if (((_ref = this.data.owner) != null ? _ref.login : void 0) === this.username) {
-          return this.patch();
+          return this.patch(this.ajaxData());
         } else {
           console.log("Fork...");
           return this.fork(function(data) {
             _this.id = data.id;
-            return _this.patch(function() {
+            return _this.patch(_this.ajaxData(), (function() {
               return _this.redirect();
-            });
+            }));
           });
         }
       } else {
@@ -2031,12 +2031,12 @@
       });
     };
 
-    Gist.prototype.patch = function(callback) {
+    Gist.prototype.patch = function(ajaxData, callback) {
       var _this = this;
       return $.ajax({
         type: "PATCH",
         url: "" + this.api + "/" + this.id,
-        data: this.ajaxData(),
+        data: ajaxData,
         beforeSend: function(xhr) {
           return _this.authBeforeSend(xhr);
         },
@@ -2065,22 +2065,11 @@
     };
 
     Gist.prototype.setDescription = function(callback) {
-      var _this = this;
-      return $.ajax({
-        type: "PATCH",
-        url: "" + this.api + "/" + this.id,
-        data: JSON.stringify({
-          description: this.description()
-        }),
-        beforeSend: function(xhr) {
-          return _this.authBeforeSend(xhr);
-        },
-        success: function(data) {
-          console.log("Set Gist description", data);
-          return typeof callback === "function" ? callback() : void 0;
-        },
-        dataType: "json"
+      var ajaxData;
+      ajaxData = JSON.stringify({
+        description: this.description()
       });
+      return this.patch(ajaxData, callback);
     };
 
     Gist.prototype.description = function() {
