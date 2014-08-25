@@ -250,9 +250,25 @@ init = ->
 	#return unless blab and blab isnt "puzlet.github.io"
 	page = new Page blab
 	render = (wikyHtml) -> page.render wikyHtml
-	ready = -> page.ready loader.resources, loader.gist.id
+	ready = ->
+		page.ready loader.resources, loader.gist.id
+		testGist()
+		
 	loader = new Loader blab, render, ready
 	$pz.renderHtml = -> page.rerender()  # ZZZ publicInterface?
+	
+testGist = ->
+	console.log "***GIST"
+	
+	$.ajax({
+		type: "GET"
+		url: "https://api.github.com/users/mvclark/gists"  # /users/:username/gists
+		#data: JSON.stringify(ajaxData)
+		success: (data) ->
+			console.log "Gists", data
+		dataType: "json"
+	})
+
 
 init()
 
