@@ -74,7 +74,9 @@ class Loader
 			@resources.add @htmlResources
 			@resources.add @scriptResources
 			listResources = JSON.parse list.content
-			@resources.add({url: url} for url in listResources)
+			for r in listResources
+				spec = if typeof r is "string" then {url: r} else r
+				@resources.add spec
 			callback?()
 	
 	# Async load html and css:

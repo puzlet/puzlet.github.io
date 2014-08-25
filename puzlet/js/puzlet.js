@@ -1183,10 +1183,11 @@
   Resource = (function() {
 
     function Resource(spec) {
+      var _ref;
       this.spec = spec;
       this.url = this.spec.url;
       this["var"] = this.spec["var"];
-      this.fileExt = Resource.getFileExt(this.url);
+      this.fileExt = (_ref = this.spec.fileExt) != null ? _ref : Resource.getFileExt(this.url);
       this.loaded = false;
       this.head = document.head;
       this.containers = new ResourceContainers(this);
@@ -1583,9 +1584,21 @@
     };
 
     Resources.prototype.createResource = function(spec) {
-      var fileExt, location, url, _ref, _ref1, _ref2;
-      url = spec.url;
-      fileExt = Resource.getFileExt(url);
+      var fileExt, location, p, url, v, _ref, _ref1, _ref2;
+      if (spec.url) {
+        url = spec.url;
+        fileExt = Resource.getFileExt(url);
+      } else {
+        for (p in spec) {
+          v = spec[p];
+          url = v;
+          fileExt = p;
+        }
+      }
+      spec = {
+        url: url,
+        fileExt: fileExt
+      };
       location = url.indexOf("/") === -1 ? "blab" : "ext";
       spec.location = location;
       spec.gistSource = (_ref = (_ref1 = this.gistFiles) != null ? (_ref2 = _ref1[url]) != null ? _ref2.content : void 0 : void 0) != null ? _ref : null;
@@ -2852,21 +2865,17 @@
         _this = this;
       list = this.resources.add(this.resourcesList);
       return this.resources.loadUnloaded(function() {
-        var listResources, url;
+        var listResources, r, spec, _i, _len;
         _this.resources.add(_this.htmlResources);
         _this.resources.add(_this.scriptResources);
         listResources = JSON.parse(list.content);
-        _this.resources.add((function() {
-          var _i, _len, _results;
-          _results = [];
-          for (_i = 0, _len = listResources.length; _i < _len; _i++) {
-            url = listResources[_i];
-            _results.push({
-              url: url
-            });
-          }
-          return _results;
-        })());
+        for (_i = 0, _len = listResources.length; _i < _len; _i++) {
+          r = listResources[_i];
+          spec = typeof r === "string" ? {
+            url: r
+          } : r;
+          _this.resources.add(spec);
+        }
         return typeof callback === "function" ? callback() : void 0;
       });
     };

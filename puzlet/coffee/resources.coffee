@@ -4,7 +4,7 @@ class Resource
 		# ZZZ option to pass string for url
 		@url = @spec.url
 		@var = @spec.var  # window variable name  # ZZZ needed here?
-		@fileExt = Resource.getFileExt @url
+		@fileExt = @spec.fileExt ? Resource.getFileExt @url
 		@loaded = false
 		@head = document.head
 		@containers = new ResourceContainers this
@@ -217,8 +217,15 @@ class Resources
 		if newResources.length is 1 then newResources[0] else newResources
 		
 	createResource: (spec) ->
-		url = spec.url
-		fileExt = Resource.getFileExt url
+		if spec.url
+			url = spec.url
+			fileExt = Resource.getFileExt url
+		else
+			for p, v of spec
+				# Currently handles only one property.
+				url = v
+				fileExt = p
+		spec = {url: url, fileExt: fileExt}
 		location = if url.indexOf("/") is -1 then "blab" else "ext"
 		spec.location = location  # Needed for coffee compiling
 		spec.gistSource = @gistFiles?[url]?.content ? null
