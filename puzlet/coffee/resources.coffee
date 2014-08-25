@@ -445,12 +445,6 @@ class Gist
 		@files = {}
 		@files[resource.url] = {content: resource.content} for resource in resources
 		
-		#ajaxDataObj =
-		#	description: "#{document.title} [http://puzlet.org?gist=#{@id}]" 
-		#	public: false
-		#	files: files
-		#ajaxData = JSON.stringify(ajaxDataObj)
-		
 		if @id and @username
 			if @data.owner?.login is @username
 				@patch @ajaxData()
