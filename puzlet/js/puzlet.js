@@ -1939,6 +1939,8 @@
 
   Gist = (function() {
 
+    Gist.api = "https://api.github.com/gists";
+
     function Gist(resources) {
       var _this = this;
       this.resources = resources;
@@ -1961,13 +1963,14 @@
       url = "https://api.github.com/gists/" + this.id;
       return $.get(url, function(data) {
         _this.data = data;
+        console.log("get gist", _this.data);
         _this.resources.setGistResources(_this.data.files);
         return typeof callback === "function" ? callback() : void 0;
       });
     };
 
     Gist.prototype.save = function() {
-      var ajaxData, files, resource, resources, _i, _len,
+      var ajaxData, ajaxDataObj, files, resource, resources, _i, _len, _ref,
         _this = this;
       this.getAuth();
       console.log("Save to Gist (" + (this.auth ? this.username : 'anonymous') + ")");
@@ -1981,28 +1984,84 @@
           content: resource.content
         };
       }
-      ajaxData = {
+      ajaxDataObj = {
         description: document.title,
         "public": false,
         files: files
       };
+      ajaxData = JSON.stringify(ajaxDataObj);
+      if (this.id && this.username) {
+        if (((_ref = this.data.owner) != null ? _ref.login : void 0) === this.username) {
+          return this.patch(ajaxData);
+        } else {
+          console.log("Fork...");
+          return this.fork(function(data) {
+            _this.id = data.id;
+            return _this.patch(ajaxData, function() {
+              return _this.redirect();
+            });
+          });
+        }
+      } else {
+        return this.create(ajaxData);
+      }
+    };
+
+    Gist.prototype.create = function(ajaxData) {
+      var _this = this;
       return $.ajax({
         type: "POST",
-        url: "https://api.github.com/gists",
-        data: JSON.stringify(ajaxData),
+        url: this.api,
+        data: ajaxData,
         beforeSend: function(xhr) {
-          if (_this.auth) {
-            return xhr.setRequestHeader('Authorization', _this.auth);
-          }
+          return _this.authBeforeSend(xhr);
         },
         success: function(data) {
-          var blabUrl;
-          console.log("Created gist", data.html_url, data);
-          blabUrl = "/?gist=" + data.id;
-          return window.location = blabUrl;
+          console.log("Created Gist", data);
+          _this.id = data.id;
+          return _this.redirect();
         },
         dataType: "json"
       });
+    };
+
+    Gist.prototype.patch = function(ajaxData, callback) {
+      var _this = this;
+      return $.ajax({
+        type: "PATCH",
+        url: "" + this.api + "/" + this.id,
+        data: ajaxData,
+        beforeSend: function(xhr) {
+          return _this.authBeforeSend(xhr);
+        },
+        success: function(data) {
+          console.log("Edited Gist", data);
+          return typeof callback === "function" ? callback() : void 0;
+        },
+        dataType: "json"
+      });
+    };
+
+    Gist.prototype.fork = function(callback) {
+      var _this = this;
+      return $.ajax({
+        type: "POST",
+        url: "" + this.api + "/" + this.id + "/forks",
+        beforeSend: function(xhr) {
+          return _this.authBeforeSend(xhr);
+        },
+        success: function(data) {
+          console.log("Forked Gist", data);
+          return typeof callback === "function" ? callback(data) : void 0;
+        },
+        dataType: "json"
+      });
+    };
+
+    Gist.prototype.redirect = function() {
+      var blabUrl;
+      blabUrl = "/?gist=" + this.id;
+      return window.location = blabUrl;
     };
 
     Gist.prototype.getId = function() {
@@ -2017,7 +2076,8 @@
     };
 
     Gist.prototype.getAuth = function() {
-      var make_base_auth;
+      var make_base_auth,
+        _this = this;
       this.username = $.cookie("gh_user");
       if (!this.username) {
         this.username = window.prompt("GitHub username");
@@ -2040,7 +2100,12 @@
         hash = btoa(tok);
         return "Basic " + hash;
       };
-      return this.auth = make_base_auth(this.username, this.key);
+      this.auth = make_base_auth(this.username, this.key);
+      return this.authBeforeSend = function(xhr) {
+        if (_this.auth) {
+          return xhr.setRequestHeader('Authorization', _this.auth);
+        }
+      };
     };
 
     return Gist;

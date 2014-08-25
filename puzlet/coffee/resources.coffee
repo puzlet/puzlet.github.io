@@ -416,6 +416,8 @@ window.CoffeeEvaluator = CoffeeEvaluator
 
 class Gist
 	
+	@api = "https://api.github.com/gists"
+	
 	constructor: (@resources) ->
 		@id = @getId()
 		$(document).on "saveGist", => @save()
@@ -428,6 +430,7 @@ class Gist
 		# For https://gist.github.com/:id
 		url = "https://api.github.com/gists/#{@id}"
 		$.get(url, (@data) =>
+			console.log "get gist", @data
 			@resources.setGistResources @data.files
 			callback?()
 		)
@@ -443,22 +446,63 @@ class Gist
 		files = {}
 		files[resource.url] = {content: resource.content} for resource in resources
 		
-		ajaxData =
+		ajaxDataObj =
 			description: document.title
 			public: false
 			files: files
-		$.ajax({
+		ajaxData = JSON.stringify(ajaxDataObj)
+			
+		#@ajaxSpec =
+			
+			
+		if @id and @username
+			if @data.owner?.login is @username
+				@patch ajaxData
+			else
+				console.log "Fork..."
+				@fork((data) => 
+					@id = data.id 
+					@patch ajaxData, => @redirect()
+				)
+		else
+			@create ajaxData
+			
+	create: (ajaxData) ->
+		$.ajax
 			type: "POST"
-			url: "https://api.github.com/gists"
-			data: JSON.stringify(ajaxData)
-			beforeSend: (xhr) =>
-				xhr.setRequestHeader('Authorization', @auth) if @auth
-			success: (data) ->
-				console.log "Created gist", data.html_url, data
-				blabUrl = "/?gist="+data.id  # data.html_url
-				window.location = blabUrl
+			url: @api
+			data: ajaxData
+			beforeSend: (xhr) => @authBeforeSend(xhr)
+			success: (data) =>
+				console.log "Created Gist", data
+				@id = data.id
+				@redirect()
 			dataType: "json"
-		})
+		
+	patch: (ajaxData, callback) ->
+		$.ajax
+			type: "PATCH"
+			url: "#{@api}/#{@id}"
+			data: ajaxData
+			beforeSend: (xhr) => @authBeforeSend(xhr)
+			success: (data) ->
+				console.log "Edited Gist", data
+				callback?()
+			dataType: "json"
+		
+	fork: (callback) ->
+		$.ajax
+			type: "POST"
+			url: "#{@api}/#{@id}/forks"
+			beforeSend: (xhr) => @authBeforeSend(xhr)
+			success: (data) =>
+				console.log "Forked Gist", data
+				callback?(data)
+			dataType: "json"
+	
+	redirect: ->
+		blabUrl = "/?gist=#{@id}"
+		window.location = blabUrl
 		
 	getId: ->
 		query = location.search.slice(1)
@@ -486,4 +530,6 @@ class Gist
 			"Basic " + hash
 		
 		@auth = make_base_auth @username, @key
+		@authBeforeSend = (xhr) =>
+			xhr.setRequestHeader('Authorization', @auth) if @auth
 
