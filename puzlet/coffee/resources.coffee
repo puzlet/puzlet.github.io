@@ -416,7 +416,7 @@ window.CoffeeEvaluator = CoffeeEvaluator
 
 class Gist
 	
-	@api = "https://api.github.com/gists"
+	@api: "https://api.github.com/gists"
 	
 	constructor: (@resources) ->
 		@id = @getId()
