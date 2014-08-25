@@ -1939,7 +1939,7 @@
 
   Gist = (function() {
 
-    Gist.api = "https://api.github.com/gists";
+    Gist.prototype.api = "https://api.github.com/gists";
 
     function Gist(resources) {
       var _this = this;
@@ -1960,7 +1960,7 @@
         }
         return;
       }
-      url = "https://api.github.com/gists/" + this.id;
+      url = "" + this.api + "/" + this.id;
       return $.get(url, function(data) {
         _this.data = data;
         console.log("get gist", _this.data);

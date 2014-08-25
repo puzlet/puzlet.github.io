@@ -416,7 +416,7 @@ window.CoffeeEvaluator = CoffeeEvaluator
 
 class Gist
 	
-	@api: "https://api.github.com/gists"
+	api: "https://api.github.com/gists"
 	
 	constructor: (@resources) ->
 		@id = @getId()
@@ -427,8 +427,7 @@ class Gist
 			@data = null
 			callback?()
 			return
-		# For https://gist.github.com/:id
-		url = "https://api.github.com/gists/#{@id}"
+		url = "#{@api}/#{@id}"
 		$.get(url, (@data) =>
 			console.log "get gist", @data
 			@resources.setGistResources @data.files
