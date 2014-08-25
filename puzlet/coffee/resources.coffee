@@ -434,7 +434,9 @@ class Gist
 	
 	save: ->
 		
-		console.log "Save to anonymous Gist"
+		@getAuth()
+		
+		console.log "Save to Gist (#{if @auth then @username else 'anonymous'})"
 		
 		resources = @resources.select (resource) ->
 			resource.spec.location is "blab"
@@ -449,6 +451,8 @@ class Gist
 			type: "POST"
 			url: "https://api.github.com/gists"
 			data: JSON.stringify(ajaxData)
+			beforeSend: (xhr) =>
+				xhr.setRequestHeader('Authorization', @auth) if @auth
 			success: (data) ->
 				console.log "Created gist", data.html_url, data
 				blabUrl = "/?gist="+data.id  # data.html_url
@@ -463,5 +467,23 @@ class Gist
 		p = h?[0].split "="
 		gist = if p.length and p[0] is "gist" then p[1] else null
 		
+	getAuth: ->
+		
+		@username = $.cookie("gh_user")
+		unless @username
+			@username = window.prompt("GitHub username")
+			return null unless @username
+			document.cookie = "gh_user=#{@username}"
+		@key = $.cookie("gh_key")
+		unless @key
+			@key = window.prompt("GitHub personal access token")
+			return null unless @key
+			document.cookie = "gh_key=#{@key}"
+		
+		make_base_auth = (user, password) ->
+			tok = user + ':' + password
+			hash = btoa(tok)
+			"Basic " + hash
+		
+		@auth = make_base_auth @username, @key
 
-	

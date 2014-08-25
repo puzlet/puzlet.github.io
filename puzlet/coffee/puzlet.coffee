@@ -45,7 +45,7 @@ class Loader
 		{url: "/puzlet/js/numeric-1.2.6.js"}
 		{url: "/puzlet/js/jquery.flot.min.js"}
 		{url: "/puzlet/js/compile.js"}
-		
+		{url: "/puzlet/js/jquery.cookie.js"}
 	]
 	# {url: "/puzlet/js/jquery.flot.min.js"}
 	# {url: "http://code.jquery.com/ui/1.9.2/themes/smoothness/jquery-ui.css"}
@@ -250,25 +250,10 @@ init = ->
 	#return unless blab and blab isnt "puzlet.github.io"
 	page = new Page blab
 	render = (wikyHtml) -> page.render wikyHtml
-	ready = ->
-		page.ready loader.resources, loader.gist.id
-		testGist()
-		
+	ready = -> page.ready loader.resources, loader.gist.id
 	loader = new Loader blab, render, ready
 	$pz.renderHtml = -> page.rerender()  # ZZZ publicInterface?
 	
-testGist = ->
-	console.log "***GIST"
-	
-	$.ajax({
-		type: "GET"
-		url: "https://api.github.com/users/mvclark/gists"  # /users/:username/gists
-		#data: JSON.stringify(ajaxData)
-		success: (data) ->
-			console.log "Gists", data
-		dataType: "json"
-	})
-
 
 init()
 
