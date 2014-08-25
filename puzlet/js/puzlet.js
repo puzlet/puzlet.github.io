@@ -1970,67 +1970,73 @@
     };
 
     Gist.prototype.save = function() {
-      var ajaxData, ajaxDataObj, files, resource, resources, _i, _len, _ref,
+      var resource, resources, _i, _len, _ref,
         _this = this;
       this.getAuth();
       console.log("Save to Gist (" + (this.auth ? this.username : 'anonymous') + ")");
       resources = this.resources.select(function(resource) {
         return resource.spec.location === "blab";
       });
-      files = {};
+      this.files = {};
       for (_i = 0, _len = resources.length; _i < _len; _i++) {
         resource = resources[_i];
-        files[resource.url] = {
+        this.files[resource.url] = {
           content: resource.content
         };
       }
-      ajaxDataObj = {
-        description: document.title,
-        "public": false,
-        files: files
-      };
-      ajaxData = JSON.stringify(ajaxDataObj);
       if (this.id && this.username) {
         if (((_ref = this.data.owner) != null ? _ref.login : void 0) === this.username) {
-          return this.patch(ajaxData);
+          return this.patch();
         } else {
           console.log("Fork...");
           return this.fork(function(data) {
             _this.id = data.id;
-            return _this.patch(ajaxData, function() {
+            return _this.patch(function() {
               return _this.redirect();
             });
           });
         }
       } else {
-        return this.create(ajaxData);
+        return this.create();
       }
     };
 
-    Gist.prototype.create = function(ajaxData) {
+    Gist.prototype.ajaxData = function() {
+      var ajaxData, ajaxDataObj;
+      ajaxDataObj = {
+        description: this.description(),
+        "public": false,
+        files: this.files
+      };
+      return ajaxData = JSON.stringify(ajaxDataObj);
+    };
+
+    Gist.prototype.create = function() {
       var _this = this;
       return $.ajax({
         type: "POST",
         url: this.api,
-        data: ajaxData,
+        data: this.ajaxData(),
         beforeSend: function(xhr) {
           return _this.authBeforeSend(xhr);
         },
         success: function(data) {
           console.log("Created Gist", data);
           _this.id = data.id;
-          return _this.redirect();
+          return _this.setDescription(function() {
+            return _this.redirect();
+          });
         },
         dataType: "json"
       });
     };
 
-    Gist.prototype.patch = function(ajaxData, callback) {
+    Gist.prototype.patch = function(callback) {
       var _this = this;
       return $.ajax({
         type: "PATCH",
         url: "" + this.api + "/" + this.id,
-        data: ajaxData,
+        data: this.ajaxData(),
         beforeSend: function(xhr) {
           return _this.authBeforeSend(xhr);
         },
@@ -2056,6 +2062,33 @@
         },
         dataType: "json"
       });
+    };
+
+    Gist.prototype.setDescription = function(callback) {
+      var _this = this;
+      return $.ajax({
+        type: "PATCH",
+        url: "" + this.api + "/" + this.id,
+        data: JSON.stringify({
+          description: this.description()
+        }),
+        beforeSend: function(xhr) {
+          return _this.authBeforeSend(xhr);
+        },
+        success: function(data) {
+          console.log("Set Gist description", data);
+          return typeof callback === "function" ? callback() : void 0;
+        },
+        dataType: "json"
+      });
+    };
+
+    Gist.prototype.description = function() {
+      var description;
+      description = document.title;
+      if (this.id) {
+        return description += " [http://puzlet.org?gist=" + this.id + "]";
+      }
     };
 
     Gist.prototype.redirect = function() {

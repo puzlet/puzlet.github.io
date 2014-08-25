@@ -442,47 +442,51 @@ class Gist
 		
 		resources = @resources.select (resource) ->
 			resource.spec.location is "blab"
-		files = {}
-		files[resource.url] = {content: resource.content} for resource in resources
+		@files = {}
+		@files[resource.url] = {content: resource.content} for resource in resources
 		
-		ajaxDataObj =
-			description: document.title
-			public: false
-			files: files
-		ajaxData = JSON.stringify(ajaxDataObj)
-			
-		#@ajaxSpec =
-			
-			
+		#ajaxDataObj =
+		#	description: "#{document.title} [http://puzlet.org?gist=#{@id}]" 
+		#	public: false
+		#	files: files
+		#ajaxData = JSON.stringify(ajaxDataObj)
+		
 		if @id and @username
 			if @data.owner?.login is @username
-				@patch ajaxData
+				@patch()
 			else
 				console.log "Fork..."
 				@fork((data) => 
 					@id = data.id 
-					@patch ajaxData, => @redirect()
+					@patch(=> @redirect())
 				)
 		else
-			@create ajaxData
+			@create()
 			
-	create: (ajaxData) ->
+	ajaxData: ->
+		ajaxDataObj =
+			description: @description()
+			public: false
+			files: @files
+		ajaxData = JSON.stringify(ajaxDataObj)
+			
+	create: ->
 		$.ajax
 			type: "POST"
 			url: @api
-			data: ajaxData
+			data: @ajaxData()
 			beforeSend: (xhr) => @authBeforeSend(xhr)
 			success: (data) =>
 				console.log "Created Gist", data
 				@id = data.id
-				@redirect()
+				@setDescription(=> @redirect())
 			dataType: "json"
 		
-	patch: (ajaxData, callback) ->
+	patch: (callback) ->
 		$.ajax
 			type: "PATCH"
 			url: "#{@api}/#{@id}"
-			data: ajaxData
+			data: @ajaxData()
 			beforeSend: (xhr) => @authBeforeSend(xhr)
 			success: (data) ->
 				console.log "Edited Gist", data
@@ -498,6 +502,21 @@ class Gist
 				console.log "Forked Gist", data
 				callback?(data)
 			dataType: "json"
+			
+	setDescription: (callback) ->
+		$.ajax
+			type: "PATCH"
+			url: "#{@api}/#{@id}"
+			data: JSON.stringify(description: @description())
+			beforeSend: (xhr) => @authBeforeSend(xhr)
+			success: (data) =>
+				console.log "Set Gist description", data
+				callback?()
+			dataType: "json"
+		
+	description: ->
+		description = document.title
+		description += " [http://puzlet.org?gist=#{@id}]" if @id
 	
 	redirect: ->
 		blabUrl = "/?gist=#{@id}"
