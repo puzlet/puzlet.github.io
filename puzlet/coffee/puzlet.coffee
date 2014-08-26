@@ -46,10 +46,9 @@ class Loader
 		{url: "/puzlet/js/jquery.flot.min.js"}
 		{url: "/puzlet/js/compile.js"}
 		{url: "/puzlet/js/jquery.cookie.js"}
+		{url: "http://code.jquery.com/ui/1.9.2/themes/smoothness/jquery-ui.css"}
+		{url: "http://code.jquery.com/ui/1.9.2/jquery-ui.min.js"}
 	]
-	# {url: "/puzlet/js/jquery.flot.min.js"}
-	# {url: "http://code.jquery.com/ui/1.9.2/themes/smoothness/jquery-ui.css"}
-	# {url: "http://code.jquery.com/ui/1.9.2/jquery-ui.min.js"}
 	
 	constructor: (@blab, @render, @done) ->
 		@resources = new Resources

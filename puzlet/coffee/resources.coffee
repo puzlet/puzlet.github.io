@@ -124,7 +124,8 @@ class CssResourceLinked extends Resource
 		@style = document.createElement "link"
 		@style.setAttribute "type", "text/css"
 		@style.setAttribute "rel", "stylesheet"
-		@style.setAttribute "href", @url
+		t = Date.now()
+		@style.setAttribute "href", @url+"?t=#{t}" # ZZZ temp
 		#@style.setAttribute "data-url", @url
 		
 		# Old browsers (e.g., old iOS) don't support onload for CSS.
@@ -435,8 +436,9 @@ class Gist
 		)
 	
 	save: ->
-		
-		@getAuth()
+		@getAuth(=> @saveAfterAuth())
+			
+	saveAfterAuth: ->
 		
 		console.log "Save to Gist (#{if @auth then @username else 'anonymous'})"
 		
@@ -473,7 +475,10 @@ class Gist
 			success: (data) =>
 				console.log "Created Gist", data
 				@id = data.id
-				@setDescription(=> @redirect())
+				if @username
+					@setDescription(=> @redirect())
+				else
+					@redirect()
 			dataType: "json"
 		
 	patch: (ajaxData, callback) ->
@@ -515,26 +520,120 @@ class Gist
 		h = query.split "&"
 		p = h?[0].split "="
 		gist = if p.length and p[0] is "gist" then p[1] else null
-		
-	getAuth: ->
-		
-		@username = $.cookie("gh_user")
-		unless @username
-			@username = window.prompt("GitHub username")
-			return null unless @username
-			document.cookie = "gh_user=#{@username}"
-		@key = $.cookie("gh_key")
-		unless @key
-			@key = window.prompt("GitHub personal access token")
-			return null unless @key
-			document.cookie = "gh_key=#{@key}"
+	
+	getAuth: (callback) ->
 		
 		make_base_auth = (user, password) ->
 			tok = user + ':' + password
 			hash = btoa(tok)
 			"Basic " + hash
 		
-		@auth = make_base_auth @username, @key
-		@authBeforeSend = (xhr) =>
-			xhr.setRequestHeader('Authorization', @auth) if @auth
+		@username = $.cookie("gh_user")
+		@key = $.cookie("gh_key")
+		@credentialsForm ?= new CredentialsForm @username, @key
+		
+		@credentialsForm.open =>
+			
+			@username = @credentialsForm.username
+			@key = @credentialsForm.key
+			$.cookie("gh_user", @username) 
+			$.cookie("gh_key", @key)
+		
+			if @username and @key
+				@auth = make_base_auth @username, @key
+				@authBeforeSend = (xhr) => xhr.setRequestHeader('Authorization', @auth)
+			else
+				@authBeforeSend = (xhr) ->
+			
+			callback?()
+		
+class CredentialsForm
+	
+	constructor: (@username, @key, @callback) ->
+		
+		@signingIn = false
+		@signedIn = false
+		
+		@dialog = $ "<div>"
+			id: "login_dialog"
+			title: "Save as Gist: GitHub Authorization"
+			
+		@dialog.dialog
+			autoOpen: false
+			height: 500
+			width: 500
+			modal: true
+			buttons:
+				"Save as Gist": => @signIn()
+				Cancel: => @dialog.dialog("close")
+			close: =>
+				@form[0].reset()
+				
+		@form = $ "<form>"
+			id: "login_form"
+			submit: (evt) =>
+				evt.preventDefault()
+				@signIn()
+				
+		@dialog.append @form
+		
+		@usernameField()
+		@keyField()
+		@infoText()
+		
+	open: (@callback) ->
+		@usernameInput.val @username
+		@keyInput.val @key
+		@dialog.dialog "open"
+		
+	usernameField: ->
+		id = "username"
+		label = $ "<label>"
+			"for": id
+			text: "Username"
+			
+		@usernameInput = $ "<input>"
+			name: "username"
+			id: id
+			value: @username
+			class: "text ui-widget-content ui-corner-all"
+			
+		@form.append(label).append(@usernameInput)
+		
+	keyField: ->
+		id = "key"
+		label = $ "<label>"
+			"for": id
+			text: "Personal access token"
+			
+		@keyInput = $ "<input>"
+			type: "password"
+			name: "key"
+			id: id
+			value: @key
+			class: "text ui-widget-content ui-corner-all"
+				
+		@form.append(label).append(@keyInput)
+		
+	infoText: ->
+		@dialog.append """
+		<br>
+		<p>To save as Gist under your GitHub account, enter your GitHub username and personal access token.
+		You can generate your personal access token <a href='https://github.com/settings/applications' target='_blank'>here</a>.
+		</p>
+		<p>
+		To save as <i>anonymous</i> Gist, continue without credentials.
+		</p>
+		<p>
+		Your GitHub username and personal access token will be saved as cookies for future saves.
+		To remove these cookies, clear the credentials above.
+		</p>
+		"""
+		
+	signIn: ->
+		@username = if @usernameInput.val() isnt "" then @usernameInput.val() else null
+		@key = if @keyInput.val() isnt "" then @keyInput.val() else null
+		@form[0].reset()
+		@dialog.dialog("close")
+		@callback()
 
