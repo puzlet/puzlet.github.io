@@ -125,7 +125,7 @@ class CssResourceLinked extends Resource
 		@style.setAttribute "type", "text/css"
 		@style.setAttribute "rel", "stylesheet"
 		t = Date.now()
-		@style.setAttribute "href", @url+"?t=#{t}" # ZZZ temp
+		@style.setAttribute "href", @url  #+"?t=#{t}"
 		#@style.setAttribute "data-url", @url
 		
 		# Old browsers (e.g., old iOS) don't support onload for CSS.

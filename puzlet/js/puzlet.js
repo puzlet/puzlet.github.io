@@ -1424,7 +1424,7 @@
       this.style.setAttribute("type", "text/css");
       this.style.setAttribute("rel", "stylesheet");
       t = Date.now();
-      this.style.setAttribute("href", this.url + ("?t=" + t));
+      this.style.setAttribute("href", this.url);
       setTimeout((function() {
         return _this.postLoad(callback);
       }), 0);
