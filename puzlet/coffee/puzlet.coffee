@@ -147,7 +147,7 @@ class Page
 	rerender: ->
 		@empty()
 		@render html.content for html in @resources.select("html")
-		new Ace.Editors (url) => @resources.find url
+		new Ace.Editors (url) => @resources.find url  # ZZZ bug?
 		$(document).trigger "htmlOutputUpdated"
 	
 	pageTitle: (wikyHtml) ->
@@ -202,7 +202,7 @@ class MathJaxProcessor
 			$.event.trigger "mathjaxPreConfig"
 			window.MathJax.Hub.Config
 				jax: ["input/TeX", "output/#{@mode}"]
-				tex2jax: {inlineMath: [["$", "$"], ["\\(", "\\)"]]}
+				tex2jax: {inlineMath: [["$", "$"], ["\\(", "\\)"]], ignoreClass: "tex2jax_ignore"}
 				TeX: {equationNumbers: {autoNumber: "AMS"}}
 				elements: [@outputId, "blab_refs"]
 				showProcessingMessages: false

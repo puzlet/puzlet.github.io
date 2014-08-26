@@ -2359,6 +2359,7 @@
     Editor.prototype.initContainer = function() {
       this.container = this.spec.container;
       this.container.addClass("code_node_container");
+      this.container.addClass("tex2jax_ignore");
       this.outer = $("<div>", {
         "class": "code_node_editor_container"
       });
@@ -3291,7 +3292,8 @@
         window.MathJax.Hub.Config({
           jax: ["input/TeX", "output/" + _this.mode],
           tex2jax: {
-            inlineMath: [["$", "$"], ["\\(", "\\)"]]
+            inlineMath: [["$", "$"], ["\\(", "\\)"]],
+            ignoreClass: "tex2jax_ignore"
           },
           TeX: {
             equationNumbers: {

@@ -546,7 +546,8 @@ class Gist
 				@authBeforeSend = (xhr) ->
 			
 			callback?()
-		
+
+
 class CredentialsForm
 	
 	constructor: (@username, @key, @callback) ->

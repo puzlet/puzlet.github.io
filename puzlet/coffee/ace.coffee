@@ -84,6 +84,7 @@ class Ace.Editor
 	initContainer: ->
 		@container = @spec.container
 		@container.addClass "code_node_container"
+		@container.addClass "tex2jax_ignore"
 		@outer = $ "<div>", class: "code_node_editor_container"  # ZZZ rename?
 		@editorContainer = $ "<div>",
 			class: "code_node_editor"
@@ -512,7 +513,4 @@ class CodeNodeFunction
 		if @originalText  # ZZZ call @original ?
 			@node.empty()
 			@node.text @originalText
-
-
-
 
