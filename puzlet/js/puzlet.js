@@ -1976,6 +1976,8 @@
 
     GitHub.prototype.ghApi = "https://api.github.com/repos/puzlet";
 
+    GitHub.prototype.ghMembersApi = "https://api.github.com/orgs/puzlet/members";
+
     GitHub.prototype.api = "https://api.github.com/gists";
 
     function GitHub(resources) {
@@ -1984,6 +1986,7 @@
       this.hostname = window.location.hostname;
       this.blabId = window.location.pathname.split("/")[1];
       this.gistId = this.getId();
+      this.setCredentials();
       $(document).on("saveGitHub", function() {
         _this.resources.updateFromContainers();
         return _this.save();
@@ -2024,17 +2027,34 @@
       });
     };
 
-    GitHub.prototype.save = function() {
-      var _this = this;
-      return this.getAuth(function() {
-        return _this.commitChangedResourcesToRepo();
-      });
+    GitHub.prototype.save = function(callback) {
+      var spec,
+        _this = this;
+      if (!this.credentialsForm) {
+        spec = {
+          blabId: this.blabId,
+          setCredentials: function(username, key) {
+            return _this.setCredentials(username, key);
+          },
+          isRepoMember: function(cb) {
+            return _this.isRepoMember(cb);
+          },
+          updateRepo: function(callback) {
+            return _this.commitChangedResourcesToRepo(callback);
+          },
+          saveAsGist: function(callback) {
+            return _this.saveAsGist(callback);
+          }
+        };
+        this.credentialsForm = new CredentialsForm(spec);
+      }
+      return this.credentialsForm.open();
     };
 
-    GitHub.prototype.saveAfterAuth = function() {
+    GitHub.prototype.saveAsGist = function(callback) {
       var resource, resources, saved, _i, _len, _ref,
         _this = this;
-      console.log("Save to GitHub (" + (this.auth ? this.username : 'anonymous') + ")");
+      console.log("Save as Gist (" + (this.auth ? this.username : 'anonymous') + ")");
       resources = this.resources.select(function(resource) {
         return resource.spec.location === "blab";
       });
@@ -2051,6 +2071,9 @@
         for (_j = 0, _len1 = _ref.length; _j < _len1; _j++) {
           resource = _ref[_j];
           resource.edited = false;
+        }
+        if (typeof callback === "function") {
+          callback();
         }
         return $.event.trigger("codeSaved");
       };
@@ -2138,7 +2161,7 @@
       });
     };
 
-    GitHub.prototype.commitChangedResourcesToRepo = function() {
+    GitHub.prototype.commitChangedResourcesToRepo = function(callback) {
       var commit, maxIdx, resources,
         _this = this;
       if (!(this.hostname === "puzlet.org" || this.hostname === "localhost" && this.username && this.key)) {
@@ -2156,6 +2179,9 @@
       commit = function(idx) {
         var resource;
         if (idx > maxIdx) {
+          if (typeof callback === "function") {
+            callback();
+          }
           $.event.trigger("codeSaved");
           return;
         }
@@ -2230,47 +2256,74 @@
       return gist = p.length && p[0] === "gist" ? p[1] : null;
     };
 
-    GitHub.prototype.getAuth = function(callback) {
-      var make_base_auth, saveAsGist, signIn, updateRepo, _ref,
+    GitHub.prototype.getRepoMembers = function(callback) {
+      var _this = this;
+      return $.ajax({
+        type: "GET",
+        url: this.ghMembersApi,
+        beforeSend: function(xhr) {
+          return _this.authBeforeSend(xhr);
+        },
+        success: function(data) {
+          return typeof callback === "function" ? callback(data) : void 0;
+        },
+        dataType: "json"
+      });
+    };
+
+    GitHub.prototype.isRepoMember = function(callback) {
+      var found, set, _ref,
         _this = this;
+      if ((_ref = this.cacheIsRepoMember) == null) {
+        this.cacheIsRepoMember = {};
+      }
+      if (this.cacheIsRepoMember[this.username] != null) {
+        callback(this.cacheIsRepoMember[this.username]);
+      }
+      set = function(isMember) {
+        if (_this.username) {
+          _this.cacheIsRepoMember[_this.username] = isMember;
+        }
+        return callback(isMember);
+      };
+      if (!(this.blabId && this.username && this.key)) {
+        set(false);
+        return;
+      }
+      found = false;
+      this.getRepoMembers(function(members) {
+        var member, _i, _len;
+        for (_i = 0, _len = members.length; _i < _len; _i++) {
+          member = members[_i];
+          found = _this.username === member.login;
+          if (found) {
+            set(true);
+            return;
+          }
+        }
+      });
+      return set(false);
+    };
+
+    GitHub.prototype.setCredentials = function(username, key) {
+      var make_base_auth,
+        _this = this;
+      this.username = username;
+      this.key = key;
       make_base_auth = function(user, password) {
         var hash, tok;
         tok = user + ':' + password;
         hash = btoa(tok);
         return "Basic " + hash;
       };
-      this.username = $.cookie("gh_user");
-      this.key = $.cookie("gh_key");
-      if ((_ref = this.credentialsForm) == null) {
-        this.credentialsForm = new CredentialsForm(this.blabId, this.username, this.key);
+      if (this.username && this.key) {
+        this.auth = make_base_auth(this.username, this.key);
+        return this.authBeforeSend = function(xhr) {
+          return xhr.setRequestHeader('Authorization', _this.auth);
+        };
+      } else {
+        return this.authBeforeSend = function(xhr) {};
       }
-      signIn = function() {
-        _this.username = _this.credentialsForm.username;
-        _this.key = _this.credentialsForm.key;
-        $.cookie("gh_user", _this.username);
-        $.cookie("gh_key", _this.key);
-        if (_this.username && _this.key) {
-          _this.auth = make_base_auth(_this.username, _this.key);
-          return _this.authBeforeSend = function(xhr) {
-            return xhr.setRequestHeader('Authorization', _this.auth);
-          };
-        } else {
-          return _this.authBeforeSend = function(xhr) {};
-        }
-      };
-      updateRepo = function() {
-        signIn();
-        return _this.commitChangedResourcesToRepo();
-      };
-      saveAsGist = function() {
-        signIn();
-        return _this.saveAfterAuth();
-      };
-      return this.credentialsForm.open((function() {
-        return updateRepo();
-      }), (function() {
-        return saveAsGist();
-      }));
     };
 
     return GitHub;
@@ -2279,48 +2332,29 @@
 
   CredentialsForm = (function() {
 
-    function CredentialsForm(blabId, username, key, updateRepo, saveAsGist) {
-      var buttons,
-        _this = this;
-      this.blabId = blabId;
-      this.username = username;
-      this.key = key;
-      this.updateRepo = updateRepo;
-      this.saveAsGist = saveAsGist;
-      this.signingIn = false;
-      this.signedIn = false;
+    function CredentialsForm(spec) {
+      var _this = this;
+      this.spec = spec;
+      this.blabId = this.spec.blabId;
+      this.username = $.cookie("gh_user");
+      this.key = $.cookie("gh_key");
       this.dialog = $("<div>", {
-        id: "login_dialog",
+        id: "github_save_dialog",
         title: "Save to GitHub"
       });
-      buttons = {
-        "Update repo": function() {
-          _this.signIn();
-          return _this.updateRepo();
-        },
-        "Save as Gist": function() {
-          _this.signIn();
-          return _this.saveAsGist();
-        },
-        Cancel: function() {
-          return _this.dialog.dialog("close");
-        }
-      };
-      if (!(this.blabId && this.username && this.key)) {
-        delete buttons["Update repo"];
-      }
       this.dialog.dialog({
         autoOpen: false,
         height: 500,
         width: 500,
         modal: true,
-        buttons: buttons,
         close: function() {
           return _this.form[0].reset();
         }
       });
+      this.spec.setCredentials(this.username, this.key);
+      this.setButtons();
       this.form = $("<form>", {
-        id: "login_form",
+        id: "github_save_form",
         submit: function(evt) {
           return evt.preventDefault();
         }
@@ -2329,18 +2363,27 @@
       this.usernameField();
       this.keyField();
       this.infoText();
+      this.saving = $("<p>", {
+        text: "Saving...",
+        css: {
+          fontSize: "16pt",
+          color: "green"
+        }
+      });
+      this.dialog.append(this.saving);
+      this.saving.hide();
     }
 
-    CredentialsForm.prototype.open = function(updateRepo, saveAsGist) {
-      this.updateRepo = updateRepo;
-      this.saveAsGist = saveAsGist;
+    CredentialsForm.prototype.open = function() {
       this.usernameInput.val(this.username);
       this.keyInput.val(this.key);
+      this.setButtons();
       return this.dialog.dialog("open");
     };
 
     CredentialsForm.prototype.usernameField = function() {
-      var id, label;
+      var id, label,
+        _this = this;
       id = "username";
       label = $("<label>", {
         "for": id,
@@ -2350,13 +2393,17 @@
         name: "username",
         id: id,
         value: this.username,
-        "class": "text ui-widget-content ui-corner-all"
+        "class": "text ui-widget-content ui-corner-all",
+        change: function() {
+          return _this.setCredentials();
+        }
       });
       return this.form.append(label).append(this.usernameInput);
     };
 
     CredentialsForm.prototype.keyField = function() {
-      var id, label;
+      var id, label,
+        _this = this;
       id = "key";
       label = $("<label>", {
         "for": id,
@@ -2367,7 +2414,10 @@
         name: "key",
         id: id,
         value: this.key,
-        "class": "text ui-widget-content ui-corner-all"
+        "class": "text ui-widget-content ui-corner-all",
+        change: function() {
+          return _this.setCredentials();
+        }
       });
       return this.form.append(label).append(this.keyInput);
     };
@@ -2376,11 +2426,68 @@
       return this.dialog.append("<br>\n<p>To save under your GitHub account, enter your GitHub username and personal access token.\nYou can generate your personal access token <a href='https://github.com/settings/applications' target='_blank'>here</a>.\n</p>\n<p>\nTo save as <i>anonymous</i> Gist, continue without credentials.\n</p>\n<p>\nYour GitHub username and personal access token will be saved as cookies for future saves.\nTo remove these cookies, clear the credentials above.\n</p>");
     };
 
-    CredentialsForm.prototype.signIn = function() {
+    CredentialsForm.prototype.setCredentials = function() {
+      console.log("Setting credentials and updating cookies");
       this.username = this.usernameInput.val() !== "" ? this.usernameInput.val() : null;
       this.key = this.keyInput.val() !== "" ? this.keyInput.val() : null;
-      this.form[0].reset();
-      return this.dialog.dialog("close");
+      $.cookie("gh_user", this.username);
+      $.cookie("gh_key", this.key);
+      this.spec.setCredentials(this.username, this.key);
+      return this.setButtons();
+    };
+
+    CredentialsForm.prototype.setButtons = function() {
+      var buttons, done, saveAction, sel, _base,
+        _this = this;
+      saveAction = function() {
+        _this.setCredentials();
+        return _this.saving.show();
+      };
+      done = function() {
+        _this.saving.hide();
+        _this.form[0].reset();
+        return _this.dialog.dialog("close");
+      };
+      buttons = {
+        "Update repo": function() {
+          saveAction();
+          return _this.spec.updateRepo(function() {
+            return done();
+          });
+        },
+        "Save as Gist": function() {
+          saveAction();
+          return _this.spec.saveAsGist(function() {
+            return done();
+          });
+        },
+        Cancel: function() {
+          return _this.dialog.dialog("close");
+        }
+      };
+      sel = function(n) {
+        var idx, o, p, v;
+        o = {};
+        idx = 0;
+        for (p in buttons) {
+          v = buttons[p];
+          if (idx >= n) {
+            o[p] = v;
+          }
+          idx++;
+        }
+        return o;
+      };
+      this.dialog.dialog({
+        buttons: sel(1)
+      });
+      return typeof (_base = this.spec).isRepoMember === "function" ? _base.isRepoMember(function(isMember) {
+        if (isMember) {
+          return _this.dialog.dialog({
+            buttons: sel(0)
+          });
+        }
+      }) : void 0;
     };
 
     return CredentialsForm;

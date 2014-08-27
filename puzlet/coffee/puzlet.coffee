@@ -31,6 +31,7 @@ class Loader
 	coreResources: [
 		{url: "http://code.jquery.com/jquery-1.8.3.min.js", var: "jQuery"}
 		{url: "/puzlet/js/wiky.js", var: "Wiky"}
+		
 	]
 	
 	resourcesList: {url: "resources.json"}

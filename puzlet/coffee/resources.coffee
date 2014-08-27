@@ -288,6 +288,7 @@ class Resources
 		for resource in @resources
 			resource.updateFromContainers() if resource.edited
 
+
 #--- CoffeeScript compiler/evaluator ---#
 
 class CoffeeCompiler
@@ -428,12 +429,14 @@ window.CoffeeEvaluator = CoffeeEvaluator
 class GitHub
 	
 	ghApi: "https://api.github.com/repos/puzlet"  # Currently works only for puzlet.org (or localhost for testing).
+	ghMembersApi: "https://api.github.com/orgs/puzlet/members"
 	api: "https://api.github.com/gists"
 	
 	constructor: (@resources) ->
 		@hostname = window.location.hostname
 		@blabId = window.location.pathname.split("/")[1]  # ZZZ better way?
 		@gistId = @getId()
+		@setCredentials()  # None initially
 		$(document).on "saveGitHub", =>
 			@resources.updateFromContainers()
 			@save()
@@ -462,18 +465,20 @@ class GitHub
 			callback?()
 		)
 	
-	save: ->
-		#resources = @resources.select (resource) -> resource.edited
-		#console.log "resources edited", resources
-		
-		
-		@getAuth(=> @commitChangedResourcesToRepo())
-		# REINSTATE:
-		#@getAuth(=> @saveAfterAuth())
+	save: (callback) ->
+		unless @credentialsForm
+			spec =
+				blabId: @blabId
+				setCredentials: (username, key) => @setCredentials username, key
+				isRepoMember: (cb) => @isRepoMember cb
+				updateRepo: (callback) => @commitChangedResourcesToRepo(callback)
+				saveAsGist: (callback) => @saveAsGist(callback)
+			@credentialsForm = new CredentialsForm spec
+		@credentialsForm.open()
 	
-	saveAfterAuth: ->
+	saveAsGist: (callback) ->
 		
-		console.log "Save to GitHub (#{if @auth then @username else 'anonymous'})"
+		console.log "Save as Gist (#{if @auth then @username else 'anonymous'})"
 		
 		resources = @resources.select (resource) ->
 			resource.spec.location is "blab"
@@ -482,6 +487,7 @@ class GitHub
 		
 		saved = =>
 			resource.edited = false for resource in @resources
+			callback?()
 			$.event.trigger "codeSaved"
 		
 		if @gistId and @username
@@ -539,7 +545,7 @@ class GitHub
 				callback?(data)
 			dataType: "json"
 	
-	commitChangedResourcesToRepo: ->
+	commitChangedResourcesToRepo: (callback) ->
 		unless @hostname is "puzlet.org" or @hostname is "localhost" and @username and @key
 			console.log("Can commit changes only to puzlet.org repo, and only with credentials.")
 			return
@@ -549,6 +555,7 @@ class GitHub
 		maxIdx = resources.length-1
 		commit = (idx) =>
 			if idx>maxIdx
+				callback?()
 				$.event.trigger "codeSaved"
 				return
 			resource = resources[idx]
@@ -576,7 +583,7 @@ class GitHub
 			type: "PUT"
 			url: url  
 			data: JSON.stringify(ajaxData)
-			beforeSend: (xhr) => @authBeforeSend(xhr) 
+			beforeSend: (xhr) => @authBeforeSend(xhr)
 			success: (data) =>
 				console.log "Updated repo file", data
 				callback?(data)
@@ -602,85 +609,90 @@ class GitHub
 		p = h?[0].split "="
 		gist = if p.length and p[0] is "gist" then p[1] else null
 	
-	getAuth: (callback) ->
-		
+	getRepoMembers: (callback) ->
+		$.ajax
+			type: "GET"
+			url: @ghMembersApi
+			beforeSend: (xhr) => @authBeforeSend(xhr)
+			success: (data) -> callback?(data)
+			dataType: "json"
+	
+	isRepoMember: (callback) ->
+		@cacheIsRepoMember ?= {}
+		callback(@cacheIsRepoMember[@username]) if @cacheIsRepoMember[@username]?
+		# ZZZ way to do this with direct ajax call?
+		set = (isMember) =>
+			@cacheIsRepoMember[@username] = isMember if @username
+			callback isMember
+		unless @blabId and @username and @key
+			set false
+			return
+		found = false
+		@getRepoMembers (members) =>
+			for member in members
+				found = @username is member.login
+				if found
+					set true
+					return
+		set(false)
+	
+	setCredentials: (@username, @key) ->
 		make_base_auth = (user, password) ->
 			tok = user + ':' + password
 			hash = btoa(tok)
 			"Basic " + hash
 		
-		@username = $.cookie("gh_user")
-		@key = $.cookie("gh_key")
-		@credentialsForm ?= new CredentialsForm @blabId, @username, @key
-		
-		signIn = =>
-			@username = @credentialsForm.username
-			@key = @credentialsForm.key
-			$.cookie("gh_user", @username) 
-			$.cookie("gh_key", @key)
-		
-			if @username and @key
-				@auth = make_base_auth @username, @key
-				@authBeforeSend = (xhr) => xhr.setRequestHeader('Authorization', @auth)
-			else
-				@authBeforeSend = (xhr) ->
-		
-		updateRepo = =>
-			signIn()
-			@commitChangedResourcesToRepo()
-			
-		saveAsGist = =>
-			signIn()
-			@saveAfterAuth()
-		
-		@credentialsForm.open (-> updateRepo()), (-> saveAsGist())
+		if @username and @key
+			@auth = make_base_auth @username, @key
+			@authBeforeSend = (xhr) => xhr.setRequestHeader('Authorization', @auth)
+		else
+			@authBeforeSend = (xhr) =>
 
 
 class CredentialsForm
 	
-	constructor: (@blabId, @username, @key, @updateRepo, @saveAsGist) ->
+	constructor: (@spec) ->
 		
-		@signingIn = false
-		@signedIn = false
+		@blabId = @spec.blabId
+		
+		@username = $.cookie("gh_user")
+		@key = $.cookie("gh_key")
 		
 		@dialog = $ "<div>"
-			id: "login_dialog"
+			id: "github_save_dialog"
 			title: "Save to GitHub"
-		
-		buttons =
-			"Update repo": =>
-				@signIn()
-				@updateRepo()
-			"Save as Gist": =>
-				@signIn()
-				@saveAsGist()
-			Cancel: => @dialog.dialog("close")
-		unless @blabId and @username and @key
-			delete buttons["Update repo"]
 		
 		@dialog.dialog
 			autoOpen: false
 			height: 500
 			width: 500
 			modal: true
-			buttons: buttons
 			close: => @form[0].reset()
-				
+		
+		@spec.setCredentials @username, @key
+		@setButtons()
+		
 		@form = $ "<form>"
-			id: "login_form"
-			submit: (evt) =>
-				evt.preventDefault()
-				#@signIn()
+			id: "github_save_form"
+			submit: (evt) => evt.preventDefault()
 				
 		@dialog.append @form
 		
 		@usernameField()
 		@keyField()
 		@infoText()
+		@saving = $ "<p>"
+			text: "Saving..."
+			css:
+				fontSize: "16pt"
+				color: "green"
+		@dialog.append @saving
+		@saving.hide()
 		
-	open: (@updateRepo, @saveAsGist) ->
+	open: ->
 		@usernameInput.val @username
 		@keyInput.val @key
+		@setButtons()
 		@dialog.dialog "open"
 		
 	usernameField: ->
@@ -694,6 +706,7 @@ class CredentialsForm
 			id: id
 			value: @username
 			class: "text ui-widget-content ui-corner-all"
+			change: => @setCredentials()
 			
 		@form.append(label).append(@usernameInput)
 		
@@ -702,14 +715,15 @@ class CredentialsForm
 		label = $ "<label>"
 			"for": id
 			text: "Personal access token"
-			
+		
 		@keyInput = $ "<input>"
 			type: "password"
 			name: "key"
 			id: id
 			value: @key
 			class: "text ui-widget-content ui-corner-all"
-				
+			change: => @setCredentials()
+			
 		@form.append(label).append(@keyInput)
 		
 	infoText: ->
@@ -727,12 +741,45 @@ class CredentialsForm
 		</p>
 		"""
 		
-	signIn: ->
+	setCredentials: ->
+		console.log "Setting credentials and updating cookies"
 		@username = if @usernameInput.val() isnt "" then @usernameInput.val() else null
 		@key = if @keyInput.val() isnt "" then @keyInput.val() else null
-		@form[0].reset()
-		@dialog.dialog("close")
-		#@callback()
+		$.cookie("gh_user", @username) 
+		$.cookie("gh_key", @key)
+		@spec.setCredentials @username, @key
+		@setButtons()
+	
+	setButtons: ->
+		
+		saveAction = =>
+			@setCredentials()
+			@saving.show()
+			
+		done = =>
+			@saving.hide()
+			@form[0].reset()
+			@dialog.dialog("close")
+		
+		buttons =
+			"Update repo": =>
+				saveAction()
+				@spec.updateRepo -> done()
+			"Save as Gist": =>
+				saveAction()
+				@spec.saveAsGist -> done()
+			Cancel: => @dialog.dialog("close")
+		
+		sel = (n) ->
+			o = {}
+			idx = 0
+			for p, v of buttons
+				o[p] = v if idx>=n
+				idx++
+			o
+		
+		@dialog.dialog buttons: sel(1)
+		@spec.isRepoMember? (isMember) => (@dialog.dialog buttons: sel(0) if isMember)
 
 
 class SaveButton
@@ -753,6 +800,7 @@ class SaveButton
 			title: "When you're done editing, save your changes to GitHub."
 		@b.button label: "Save"
 		
+		# ZZZ no longer used
 		@savingMessage = $ "<span>"
 			css:
 				top: 20
