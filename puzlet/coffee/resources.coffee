@@ -544,14 +544,22 @@ class GitHub
 			console.log("Can commit changes only to puzlet.org repo, and only with credentials.")
 			return
 		resources = @resources.select (resource) -> resource.edited
-		for resource in resources
+		console.log "resources", resources
+		return unless resources.length
+		maxIdx = resources.length-1
+		commit = (idx) =>
+			if idx>maxIdx
+				$.event.trigger "codeSaved"
+				return
+			resource = resources[idx]
 			@loadResourceFromRepo(resource, (data) =>
 				resource.sha = data.sha
-				callback = -> resource.edited = false  # ZZZ callback
-				@commitResourceToRepo resource, callback
+				@commitResourceToRepo resource, ->
+					resource.edited = false
+					commit(idx+1)  # Recursion
 			)
-		$.event.trigger "codeSaved"  # ZZZ should do this only once all are saved (i.e., count loads, and do from callback)
-	
+		commit(0)
+		
 	commitResourceToRepo: (resource, callback) ->
 		
 		path = resource.url

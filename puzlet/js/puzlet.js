@@ -2139,7 +2139,7 @@
     };
 
     GitHub.prototype.commitChangedResourcesToRepo = function() {
-      var resource, resources, _i, _len,
+      var commit, maxIdx, resources,
         _this = this;
       if (!(this.hostname === "puzlet.org" || this.hostname === "localhost" && this.username && this.key)) {
         console.log("Can commit changes only to puzlet.org repo, and only with credentials.");
@@ -2148,18 +2148,27 @@
       resources = this.resources.select(function(resource) {
         return resource.edited;
       });
-      for (_i = 0, _len = resources.length; _i < _len; _i++) {
-        resource = resources[_i];
-        this.loadResourceFromRepo(resource, function(data) {
-          var callback;
-          resource.sha = data.sha;
-          callback = function() {
-            return resource.edited = false;
-          };
-          return _this.commitResourceToRepo(resource, callback);
-        });
+      console.log("resources", resources);
+      if (!resources.length) {
+        return;
       }
-      return $.event.trigger("codeSaved");
+      maxIdx = resources.length - 1;
+      commit = function(idx) {
+        var resource;
+        if (idx > maxIdx) {
+          $.event.trigger("codeSaved");
+          return;
+        }
+        resource = resources[idx];
+        return _this.loadResourceFromRepo(resource, function(data) {
+          resource.sha = data.sha;
+          return _this.commitResourceToRepo(resource, function() {
+            resource.edited = false;
+            return commit(idx + 1);
+          });
+        });
+      };
+      return commit(0);
     };
 
     GitHub.prototype.commitResourceToRepo = function(resource, callback) {
