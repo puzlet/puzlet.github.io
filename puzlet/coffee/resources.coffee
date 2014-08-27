@@ -30,7 +30,10 @@ class Resource
 	
 	update: (@content) ->
 		console.log "No update method for #{@url}"
-		
+	
+	updateFromContainers: ->
+		@containers.updateResource()
+	
 	hasEval: -> @containers.evals().length
 	
 	render: -> @containers.render()
@@ -72,6 +75,11 @@ class ResourceContainers
 		# Get eval container if there is one (and only one).
 		return null unless @evalNodes?.length is 1
 		@evalNodes[0].container
+		
+	updateResource: ->
+		console.log "Potential update issue because more than one editor for a resource", @resource if @fileNodes.length>1
+		for fileNode in @fileNodes
+			@resource.update(fileNode.code())
 	
 	files: -> $("div[#{@fileContainerAttr}='#{@url}']")
 	
@@ -207,7 +215,7 @@ class Resources
 	
 	constructor: ->
 		@resources = []
-	
+		
 	add: (resourceSpecs) ->
 		resourceSpecs = [resourceSpecs] unless resourceSpecs.length
 		newResources = []
@@ -275,8 +283,10 @@ class Resources
 		resource.render() for resource in @resources
 	
 	setGistResources: (@gistFiles) ->
-		
-
+	
+	updateFromContainers: ->
+		for resource in @resources
+			resource.updateFromContainers() if resource.edited
 
 #--- CoffeeScript compiler/evaluator ---#
 
@@ -413,47 +423,74 @@ class CoffeeEvaluator
 
 window.CoffeeEvaluator = CoffeeEvaluator
 
-#--- Gist ---#
+#--- GitHub/Gist ---#
 
-class Gist
+class GitHub
 	
+	ghApi: "https://api.github.com/repos/puzlet"  # Currently works only for puzlet.org (or localhost for testing).
 	api: "https://api.github.com/gists"
 	
 	constructor: (@resources) ->
-		@id = @getId()
-		$(document).on "saveGist", => @save()
+		@hostname = window.location.hostname
+		@blabId = window.location.pathname.split("/")[1]  # ZZZ better way?
+		@gistId = @getId()
+		$(document).on "saveGitHub", =>
+			@resources.updateFromContainers()
+			@save()
+			
+	repoApiUrl: (path) ->
+		"#{@ghApi}/#{@blabId}/contents/#{path}"
 	
-	load: (callback) ->
-		unless @id
+	loadResourceFromRepo: (resource, callback) ->
+		# ZZZ Can resources be loaded earlier?
+		path = resource.url
+		url = @repoApiUrl path
+		$.get(url, (data) =>
+			console.log "Loaded resource #{path} from repo", data
+			callback?(data)
+		)
+	
+	loadGist: (callback) ->
+		unless @gistId
 			@data = null
 			callback?()
 			return
-		url = "#{@api}/#{@id}"
+		url = "#{@api}/#{@gistId}"
 		$.get(url, (@data) =>
-			console.log "get gist", @data
+			console.log "Gist loaded", @data
 			@resources.setGistResources @data.files
 			callback?()
 		)
 	
 	save: ->
-		@getAuth(=> @saveAfterAuth())
-			
+		#resources = @resources.select (resource) -> resource.edited
+		#console.log "resources edited", resources
+		
+		
+		@getAuth(=> @commitChangedResourcesToRepo())
+		# REINSTATE:
+		#@getAuth(=> @saveAfterAuth())
+	
 	saveAfterAuth: ->
 		
-		console.log "Save to Gist (#{if @auth then @username else 'anonymous'})"
+		console.log "Save to GitHub (#{if @auth then @username else 'anonymous'})"
 		
 		resources = @resources.select (resource) ->
 			resource.spec.location is "blab"
 		@files = {}
 		@files[resource.url] = {content: resource.content} for resource in resources
 		
-		if @id and @username
+		saved = =>
+			resource.edited = false for resource in @resources
+			$.event.trigger "codeSaved"
+		
+		if @gistId and @username
 			if @data.owner?.login is @username
-				@patch @ajaxData()
+				@patch @ajaxData(), saved
 			else
 				console.log "Fork..."
 				@fork((data) => 
-					@id = data.id 
+					@gistId = data.id 
 					@patch @ajaxData(), (=> @redirect())
 				)
 		else
@@ -474,7 +511,7 @@ class Gist
 			beforeSend: (xhr) => @authBeforeSend(xhr)
 			success: (data) =>
 				console.log "Created Gist", data
-				@id = data.id
+				@gistId = data.id
 				if @username
 					@setDescription(=> @redirect())
 				else
@@ -484,34 +521,70 @@ class Gist
 	patch: (ajaxData, callback) ->
 		$.ajax
 			type: "PATCH"
-			url: "#{@api}/#{@id}"
+			url: "#{@api}/#{@gistId}"
 			data: ajaxData
 			beforeSend: (xhr) => @authBeforeSend(xhr)
 			success: (data) ->
-				console.log "Edited Gist", data
+				console.log "Updated Gist", data
 				callback?()
 			dataType: "json"
 		
 	fork: (callback) ->
 		$.ajax
 			type: "POST"
-			url: "#{@api}/#{@id}/forks"
+			url: "#{@api}/#{@gistId}/forks"
 			beforeSend: (xhr) => @authBeforeSend(xhr)
 			success: (data) =>
 				console.log "Forked Gist", data
 				callback?(data)
 			dataType: "json"
-			
+	
+	commitChangedResourcesToRepo: ->
+		unless @hostname is "puzlet.org" or @hostname is "localhost" and @username and @key
+			console.log("Can commit changes only to puzlet.org repo, and only with credentials.")
+			return
+		resources = @resources.select (resource) -> resource.edited
+		for resource in resources
+			@loadResourceFromRepo(resource, (data) =>
+				resource.sha = data.sha
+				callback = -> resource.edited = false  # ZZZ callback
+				@commitResourceToRepo resource, callback
+			)
+		$.event.trigger "codeSaved"  # ZZZ should do this only once all are saved (i.e., count loads, and do from callback)
+	
+	commitResourceToRepo: (resource, callback) ->
+		
+		path = resource.url
+		url = @repoApiUrl path
+		
+		ajaxData =
+			message: "Puzlet commit"
+			path: path
+			content: btoa(resource.content) # Base 64
+			sha: resource.sha  # Fetched from GitHub
+			# Optional: committer
+	
+		$.ajax
+			type: "PUT"
+			url: url  
+			data: JSON.stringify(ajaxData)
+			beforeSend: (xhr) => @authBeforeSend(xhr) 
+			success: (data) =>
+				console.log "Updated repo file", data
+				callback?(data)
+			dataType: "json"
+
+
 	setDescription: (callback) ->
 		ajaxData = JSON.stringify(description: @description())
 		@patch ajaxData, callback
 		
 	description: ->
 		description = document.title
-		description += " [http://puzlet.org?gist=#{@id}]" if @id
+		description += " [http://puzlet.org?gist=#{@gistId}]" if @gistId
 	
 	redirect: ->
-		blabUrl = "/?gist=#{@id}"
+		blabUrl = "/?gist=#{@gistId}"
 		window.location = blabUrl
 		
 	getId: ->
@@ -530,10 +603,9 @@ class Gist
 		
 		@username = $.cookie("gh_user")
 		@key = $.cookie("gh_key")
-		@credentialsForm ?= new CredentialsForm @username, @key
+		@credentialsForm ?= new CredentialsForm @blabId, @username, @key
 		
-		@credentialsForm.open =>
-			
+		signIn = =>
 			@username = @credentialsForm.username
 			@key = @credentialsForm.key
 			$.cookie("gh_user", @username) 
@@ -544,37 +616,53 @@ class Gist
 				@authBeforeSend = (xhr) => xhr.setRequestHeader('Authorization', @auth)
 			else
 				@authBeforeSend = (xhr) ->
+		
+		updateRepo = =>
+			signIn()
+			@commitChangedResourcesToRepo()
 			
-			callback?()
+		saveAsGist = =>
+			signIn()
+			@saveAfterAuth()
+		
+		@credentialsForm.open (-> updateRepo()), (-> saveAsGist())
 
 
 class CredentialsForm
 	
-	constructor: (@username, @key, @callback) ->
+	constructor: (@blabId, @username, @key, @updateRepo, @saveAsGist) ->
 		
 		@signingIn = false
 		@signedIn = false
 		
 		@dialog = $ "<div>"
 			id: "login_dialog"
-			title: "Save as Gist: GitHub Authorization"
-			
+			title: "Save to GitHub"
+		
+		buttons =
+			"Update repo": =>
+				@signIn()
+				@updateRepo()
+			"Save as Gist": =>
+				@signIn()
+				@saveAsGist()
+			Cancel: => @dialog.dialog("close")
+		unless @blabId and @username and @key
+			delete buttons["Update repo"]
+		
 		@dialog.dialog
 			autoOpen: false
 			height: 500
 			width: 500
 			modal: true
-			buttons:
-				"Save as Gist": => @signIn()
-				Cancel: => @dialog.dialog("close")
-			close: =>
-				@form[0].reset()
+			buttons: buttons
+			close: => @form[0].reset()
 				
 		@form = $ "<form>"
 			id: "login_form"
 			submit: (evt) =>
 				evt.preventDefault()
-				@signIn()
+				#@signIn()
 				
 		@dialog.append @form
 		
@@ -582,7 +670,7 @@ class CredentialsForm
 		@keyField()
 		@infoText()
 		
-	open: (@callback) ->
+	open: (@updateRepo, @saveAsGist) ->
 		@usernameInput.val @username
 		@keyInput.val @key
 		@dialog.dialog "open"
@@ -619,7 +707,7 @@ class CredentialsForm
 	infoText: ->
 		@dialog.append """
 		<br>
-		<p>To save as Gist under your GitHub account, enter your GitHub username and personal access token.
+		<p>To save under your GitHub account, enter your GitHub username and personal access token.
 		You can generate your personal access token <a href='https://github.com/settings/applications' target='_blank'>here</a>.
 		</p>
 		<p>
@@ -636,5 +724,45 @@ class CredentialsForm
 		@key = if @keyInput.val() isnt "" then @keyInput.val() else null
 		@form[0].reset()
 		@dialog.dialog("close")
-		@callback()
+		#@callback()
+
+
+class SaveButton
+	
+	constructor: (@container, @callback) ->
+		@div = $ "<div>"
+			id: "save_button_container"
+			css:
+				position: "fixed"
+				top: 10
+				right: 10
+		
+		@b = $ "<button>"
+			click: =>
+				@b.hide()
+				#@saving()
+				@callback?()
+			title: "When you're done editing, save your changes to GitHub."
+		@b.button label: "Save"
+		
+		@savingMessage = $ "<span>"
+			css:
+				top: 20
+				color: "#2a2"
+				cursor: "default"
+			text: "Saving..."
+		
+		@div.append(@b).append(@savingMessage)
+		@container.append @div
+		
+		# Hide initially
+		@b.hide()
+		@savingMessage.hide()
+		
+		$(document).on "codeNodeChanged", => @b.show()
+		#$(document).on "codeSaved", => @savingMessaage.hide()
+		
+	saving: ->
+		@b.hide()
+		@savingMessage.show()
 

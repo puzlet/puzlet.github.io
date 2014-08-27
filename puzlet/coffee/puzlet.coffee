@@ -52,17 +52,17 @@ class Loader
 	
 	constructor: (@blab, @render, @done) ->
 		@resources = new Resources
-		@loadCoreResources => @loadGist => @loadResourceList => @loadHtmlCss => @loadScripts => @loadAce => @done()
+		@loadCoreResources => @loadGitHub => @loadResourceList => @loadHtmlCss => @loadScripts => @loadAce => @done()
 	
 	# Dynamically load and run jQuery and Wiky.
 	loadCoreResources: (callback) ->
 		@resources.add @coreResources
 		@resources.loadUnloaded callback
 		
-	# Load Gist files - these override blab files.
-	loadGist: (callback) ->
-		@gist = new Gist @resources
-		@gist.load callback
+	# Initiate GitHub object and load Gist files - these override blab files.
+	loadGitHub: (callback) ->
+		@github = new GitHub @resources
+		@github.loadGist callback
 	
 	# Load and parse resources.json.  (Need jQuery to do this; uses ajax $.get.)
 	# Get ordered list of resources (html, css, js, coffee).
@@ -143,6 +143,7 @@ class Page
 		new MathJaxProcessor  # ZZZ should be after all html rendered?
 		new FavIcon
 		new GithubRibbon @container, @blab, @gistId
+		new SaveButton @container, -> $.event.trigger "saveGitHub"
 		
 	rerender: ->
 		@empty()
@@ -176,7 +177,11 @@ class GithubRibbon
 			<img style="position: absolute; top: 0; right: 0; border: 0;" src="#{src}" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_red_aa0000.png"></a>
 		"""
 		@container.append(html)
-		setTimeout (-> $("#ribbon").fadeTo(400, 1).fadeTo(400, 0.2)), 2000
+		@ribbon = $("#ribbon")
+		setTimeout (=> @ribbon.fadeTo(400, 1).fadeTo(400, 0.2)), 2000
+		
+		$(document).on "codeNodeChanged", => @ribbon.hide()
+		$(document).on "codeSaved", => @ribbon.show()
 
 
 class MathJaxProcessor
@@ -249,10 +254,10 @@ init = ->
 	#return unless blab and blab isnt "puzlet.github.io"
 	page = new Page blab
 	render = (wikyHtml) -> page.render wikyHtml
-	ready = -> page.ready loader.resources, loader.gist.id
+	ready = -> page.ready loader.resources, loader.github.id
 	loader = new Loader blab, render, ready
 	$pz.renderHtml = -> page.rerender()  # ZZZ publicInterface?
-	
+
 
 init()
 

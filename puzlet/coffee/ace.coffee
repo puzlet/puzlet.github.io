@@ -17,6 +17,8 @@ class Ace.Node
 			lang: @lang
 			
 	create: -> # Override in subclass
+		
+	code: -> @editor.code()
 
 
 class Ace.EditorNode extends Ace.Node
@@ -30,6 +32,9 @@ class Ace.EditorNode extends Ace.Node
 	create: ->
 		Editor = Ace.Languages.get(@spec.lang).Editor ? Ace.Editor
 		@editor = new Editor @spec
+		@editor.onChange =>
+			@resource.edited = true
+			$.event.trigger "codeNodeChanged"
 
 
 class Ace.EvalNode extends Ace.Node
@@ -47,7 +52,6 @@ class Ace.EvalNode extends Ace.Node
 			@setCode() if data.url is @filename
 			
 	setCode: ->
-		#@editor.
 		@editor.set @resource.resultStr
 
 
@@ -250,8 +254,8 @@ class Ace.Editor
 				mac: "Ctrl-s"
 				sender: "editor"
 			exec: (env, args, request) =>
-				@spec.update(@code())
-				$(document).trigger "saveGist"
+				#@spec.update(@code())
+				$.event.trigger "saveGitHub"
 	
 
 
