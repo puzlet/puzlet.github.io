@@ -3527,17 +3527,13 @@
     };
 
     Page.prototype.rerender = function() {
-      var html, _i, _len, _ref,
-        _this = this;
+      var html, _i, _len, _ref;
       this.empty();
       _ref = this.resources.select("html");
       for (_i = 0, _len = _ref.length; _i < _len; _i++) {
         html = _ref[_i];
         this.render(html.content);
       }
-      new Ace.Editors(function(url) {
-        return _this.resources.find(url);
-      });
       return $(document).trigger("htmlOutputUpdated");
     };
 

@@ -149,7 +149,7 @@ class Page
 	rerender: ->
 		@empty()
 		@render html.content for html in @resources.select("html")
-		new Ace.Editors (url) => @resources.find url  # ZZZ bug?
+#		new Ace.Editors (url) => @resources.find url  # ZZZ bug?
 		$(document).trigger "htmlOutputUpdated"
 	
 	pageTitle: (wikyHtml) ->
