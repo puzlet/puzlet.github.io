@@ -10,6 +10,9 @@ checkout = git clone 'git@github.com:puzlet/blab' 'blab'
 [cs-intro]
 checkout = git clone 'git@github.com:puzlet/cs-intro' 'cs-intro'
 
+[doc]
+checkout = git clone 'git@github.com:puzlet/doc' 'doc'
+
 [dynamic-sine]
 checkout = git clone 'git@github.com:puzlet/dynamic-sine' 'dynamic-sine'
 
@@ -24,6 +27,9 @@ checkout = git clone 'git@github.com:puzlet/math' 'math'
 
 [ode-fixed]
 checkout = git clone 'git@github.com:puzlet/ode-fixed' 'ode-fixed'
+
+[sci-comp]
+checkout = git clone 'git@github.com:puzlet/sci-comp' 'sci-comp'
 
 [puzlet]
 checkout = git clone 'git@github.com:puzlet/puzlet' 'puzlet'
