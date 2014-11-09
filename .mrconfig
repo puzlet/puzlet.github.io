@@ -1,6 +1,9 @@
 [3d-demos]
 checkout = git clone 'git@github.com:puzlet/3d-demos' '3d-demos'
 
+[ace-comments]
+checkout = git clone 'git@github.com:puzlet/ace-comments' 'ace-comments'
+
 [basic-animation]
 checkout = git clone 'git@github.com:puzlet/basic-animation' 'basic-animation'
 
