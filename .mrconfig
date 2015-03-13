@@ -1,0 +1,44 @@
+[3d-demos]
+checkout = git clone 'git@github.com:puzlet/3d-demos' '3d-demos'
+
+[ace-comments]
+checkout = git clone 'git@github.com:puzlet/ace-comments' 'ace-comments'
+
+[basic-animation]
+checkout = git clone 'git@github.com:puzlet/basic-animation' 'basic-animation'
+
+[blab]
+checkout = git clone 'git@github.com:puzlet/blab' 'blab'
+
+[cs-intro]
+checkout = git clone 'git@github.com:puzlet/cs-intro' 'cs-intro'
+
+[doc]
+checkout = git clone 'git@github.com:puzlet/doc' 'doc'
+
+[dynamic-sine]
+checkout = git clone 'git@github.com:puzlet/dynamic-sine' 'dynamic-sine'
+
+[line-chart]
+checkout = git clone 'git@github.com:puzlet/line-chart' 'line-chart'
+
+[local]
+checkout = git clone 'git@github.com:puzlet/local' 'local'
+
+[math]
+checkout = git clone 'git@github.com:puzlet/math' 'math'
+
+[ode-fixed]
+checkout = git clone 'git@github.com:puzlet/ode-fixed' 'ode-fixed'
+
+[sci-comp]
+checkout = git clone 'git@github.com:puzlet/sci-comp' 'sci-comp'
+
+[puzlet]
+checkout = git clone 'git@github.com:puzlet/puzlet' 'puzlet'
+
+[utility]
+checkout = git clone 'git@github.com:puzlet/utility' 'utility'
+
+[view-finder]
+checkout = git clone 'git@github.com:puzlet/view-finder' 'view-finder'
