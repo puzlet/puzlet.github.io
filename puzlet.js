@@ -6,9 +6,13 @@ Puzlet Bootstrap
 
 
 (function() {
-  var a, hasPath, host, hostParts, isLocalHost, isPuzlet, path, pathParts, search, url;
+  var a, host, isLocalHost, loaderPath, loaderUrl, localLoaderUrl, localOrg, puzletLoaderUrl, puzletOrg, script;
 
-  console.log("Puzlet bootstrap");
+  localOrg = "../../puzlet";
+
+  puzletOrg = "http://puzlet.org";
+
+  loaderPath = "/puzlet/js/loader.js";
 
   if (window.console == null) {
     window.console = {};
@@ -18,28 +22,36 @@ Puzlet Bootstrap
     window.console.log = (function() {});
   }
 
-  url = window.location.href;
+  console.log("Puzlet bootstrap");
 
   a = document.createElement("a");
 
-  a.href = url;
+  a.href = window.location.href;
 
   host = a.hostname;
 
-  path = a.pathname;
-
-  search = a.search;
-
-  hostParts = host.split(".");
-
-  pathParts = path ? path.split("/") : [];
-
-  hasPath = pathParts.length;
-
   isLocalHost = host === "localhost";
 
-  isPuzlet = host === "puzlet.org";
+  localLoaderUrl = localOrg + loaderPath;
 
-  console.log("host/path/search", host, path, search);
+  puzletLoaderUrl = puzletOrg + loaderPath;
+
+  loaderUrl = isLocalHost ? localLoaderUrl : puzletLoaderUrl;
+
+  console.log("Attempting to load " + loaderUrl + " (localhost).");
+
+  script = document.createElement("script");
+
+  script.setAttribute("type", "text/javascript");
+
+  script.setAttribute("src", loaderUrl);
+
+  script.onerror = function() {
+    console.log("No loader.js found on localserver.  Loading " + puzletLoaderUrl + ".");
+    script.setAttribute("src", puzletLoaderUrl);
+    return document.head.appendChild(script);
+  };
+
+  document.head.appendChild(script);
 
 }).call(this);

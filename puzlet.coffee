@@ -2,32 +2,35 @@
 Puzlet Bootstrap
 ###
 
-console.log "Puzlet bootstrap"
+localOrg = "../../puzlet"
+puzletOrg = "http://puzlet.org"
+loaderPath = "/puzlet/js/loader.js"  # repo/folder/file
 
 window.console = {} unless window.console?
 window.console.log = (->) unless window.console.log?
 
-url = window.location.href
+console.log "Puzlet bootstrap"
 
+# Host
 a = document.createElement "a"
-a.href = url
-
-# URL components
+a.href = window.location.href
 host = a.hostname
-path = a.pathname
-search = a.search 
-
-# Decompose into parts
-hostParts = host.split "."
-pathParts = if path then path.split "/" else []
-hasPath = pathParts.length
-
-# Resource host type
 isLocalHost = host is "localhost"
-isPuzlet = host is "puzlet.org"
 
-console.log "host/path/search", host, path, search
+# Loader
+localLoaderUrl = localOrg + loaderPath
+puzletLoaderUrl = puzletOrg + loaderPath
+loaderUrl = if isLocalHost then localLoaderUrl else puzletLoaderUrl
 
+console.log "Attempting to load #{loaderUrl} (localhost)."
+script = document.createElement "script"
+script.setAttribute "type", "text/javascript"
+script.setAttribute "src", loaderUrl
+script.onerror = ->
+	console.log "No loader.js found on localserver.  Loading #{puzletLoaderUrl}."
+	script.setAttribute "src", puzletLoaderUrl  # puzlet.org
+	document.head.appendChild script
+document.head.appendChild script
 
-
-
+# Caching
+#t = Date.now()
