@@ -22,7 +22,7 @@ localLoaderUrl = localOrg + loaderPath
 puzletLoaderUrl = puzletOrg + loaderPath
 loaderUrl = if isLocalHost then localLoaderUrl else puzletLoaderUrl
 
-# Load script
+# Script loader
 loadScript = (url, onError) ->
 	script = document.createElement "script"
 	script.setAttribute "type", "text/javascript"
@@ -30,8 +30,13 @@ loadScript = (url, onError) ->
 	script.onerror = onError
 	document.head.appendChild script
 
-console.log "Attempting to load #{loaderUrl} (localhost)."
-loadScript loaderUrl, ->
+# Loading-error function
+loadFromPuzlet = ->
 	console.log "No loader.js found on localserver.  Loading #{puzletLoaderUrl}."
 	loadScript puzletLoaderUrl, ->  # puzlet.org
+onError = if isLocalHost then loadFromPuzlet else (->)
 
+# Load loader.js
+console.log "Attempting to load from localhost." if isLocalHost
+console.log "Loading #{loaderUrl}."
+loadScript loaderUrl, onError

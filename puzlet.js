@@ -6,7 +6,7 @@ Puzlet Bootstrap
 
 
 (function() {
-  var a, host, isLocalHost, loadScript, loaderPath, loaderUrl, localLoaderUrl, localOrg, puzletLoaderUrl, puzletOrg;
+  var a, host, isLocalHost, loadFromPuzlet, loadScript, loaderPath, loaderUrl, localLoaderUrl, localOrg, onError, puzletLoaderUrl, puzletOrg;
 
   localOrg = "../../puzlet";
 
@@ -47,11 +47,19 @@ Puzlet Bootstrap
     return document.head.appendChild(script);
   };
 
-  console.log("Attempting to load " + loaderUrl + " (localhost).");
-
-  loadScript(loaderUrl, function() {
+  loadFromPuzlet = function() {
     console.log("No loader.js found on localserver.  Loading " + puzletLoaderUrl + ".");
     return loadScript(puzletLoaderUrl, function() {});
-  });
+  };
+
+  onError = isLocalHost ? loadFromPuzlet : (function() {});
+
+  if (isLocalHost) {
+    console.log("Attempting to load from localhost.");
+  }
+
+  console.log("Loading " + loaderUrl + ".");
+
+  loadScript(loaderUrl, onError);
 
 }).call(this);
