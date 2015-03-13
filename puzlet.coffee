@@ -17,20 +17,21 @@ a.href = window.location.href
 host = a.hostname
 isLocalHost = host is "localhost"
 
-# Loader
+# Loader URLs
 localLoaderUrl = localOrg + loaderPath
 puzletLoaderUrl = puzletOrg + loaderPath
 loaderUrl = if isLocalHost then localLoaderUrl else puzletLoaderUrl
 
-console.log "Attempting to load #{loaderUrl} (localhost)."
-script = document.createElement "script"
-script.setAttribute "type", "text/javascript"
-script.setAttribute "src", loaderUrl
-script.onerror = ->
-	console.log "No loader.js found on localserver.  Loading #{puzletLoaderUrl}."
-	script.setAttribute "src", puzletLoaderUrl  # puzlet.org
+# Load script
+loadScript = (url, onError) ->
+	script = document.createElement "script"
+	script.setAttribute "type", "text/javascript"
+	script.setAttribute "src", url
+	script.onerror = onError
 	document.head.appendChild script
-document.head.appendChild script
 
-# Caching
-#t = Date.now()
+console.log "Attempting to load #{loaderUrl} (localhost)."
+loadScript loaderUrl, ->
+	console.log "No loader.js found on localserver.  Loading #{puzletLoaderUrl}."
+	loadScript puzletLoaderUrl, ->  # puzlet.org
+

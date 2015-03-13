@@ -6,7 +6,7 @@ Puzlet Bootstrap
 
 
 (function() {
-  var a, host, isLocalHost, loaderPath, loaderUrl, localLoaderUrl, localOrg, puzletLoaderUrl, puzletOrg, script;
+  var a, host, isLocalHost, loadScript, loaderPath, loaderUrl, localLoaderUrl, localOrg, puzletLoaderUrl, puzletOrg;
 
   localOrg = "../../puzlet";
 
@@ -38,20 +38,20 @@ Puzlet Bootstrap
 
   loaderUrl = isLocalHost ? localLoaderUrl : puzletLoaderUrl;
 
-  console.log("Attempting to load " + loaderUrl + " (localhost).");
-
-  script = document.createElement("script");
-
-  script.setAttribute("type", "text/javascript");
-
-  script.setAttribute("src", loaderUrl);
-
-  script.onerror = function() {
-    console.log("No loader.js found on localserver.  Loading " + puzletLoaderUrl + ".");
-    script.setAttribute("src", puzletLoaderUrl);
+  loadScript = function(url, onError) {
+    var script;
+    script = document.createElement("script");
+    script.setAttribute("type", "text/javascript");
+    script.setAttribute("src", url);
+    script.onerror = onError;
     return document.head.appendChild(script);
   };
 
-  document.head.appendChild(script);
+  console.log("Attempting to load " + loaderUrl + " (localhost).");
+
+  loadScript(loaderUrl, function() {
+    console.log("No loader.js found on localserver.  Loading " + puzletLoaderUrl + ".");
+    return loadScript(puzletLoaderUrl, function() {});
+  });
 
 }).call(this);
