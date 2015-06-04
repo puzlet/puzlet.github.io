@@ -5,7 +5,7 @@ Puzlet Bootstrap
 Purpose of this bootstrap script:
 
 * Loads the Puzlet app from the right location.
-  It generally loads Puzlet from puzlet.org, but can load it from localhost if needed.
+  It generally loads Puzlet from puzlet.org/puzlet, but can load it from localhost if needed.
   (e.g., if you are developing the Puzlet app locally.)
 
 * A blab's index.html can always use the same tag at bottom of <body>:
@@ -15,17 +15,18 @@ Purpose of this bootstrap script:
 * No need to include any other resource tags (<script>, <link>) in index.html.
   All required resources are specified in blab's resources.coffee.
 
-* Determines the GitHub organization and repo (org/repo) for the current blab.
+* Determines the GitHub organization and repo (org/repo) associated with the current blab,
+  whether the blab is hosted on GitHub or elsewhere (e.g., locally, deployment).
 
-* Creates window.$blab namespace, used for the Puzlet app and components.
+* Creates Puzlet namespace window.$blab, used for the Puzlet app and components.
   Creates $blab.gitHub which holds information about the current blab's GitHub org/repo.
 
-* Other know Puzlet organizations with custom domain names (besides puzlet.org) can be registered here.
+* Other known Puzlet organizations with custom domain names (besides puzlet.org) can be registered here.
 
 Handles these Puzlet hosts:
 
 1. org.github.io - GitHub organization.  Everything loaded from GitHub (loader is //puzlet.org/puzlet/js/loader.js)
-2. puzlet.org - Known custom domain (can set others here).  As above.
+2. puzlet.org - Known custom domain (can set others in this script).  As above.
 3. custom-domain.org - Unknown custom domain.  Requires /CNAME and /owner.json.  Otherwise, as above.
 4. localhost:port/path/repo - Local development.  Usually path=org.  Requires /puzlet.json.  Should have empty /CNAME to avoid GET errors.
 5. deployment.com/path/repo - Deployment server.  Same as 4, but path likely not org.
