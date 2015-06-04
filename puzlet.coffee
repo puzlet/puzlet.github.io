@@ -30,6 +30,7 @@ Handles these Puzlet hosts:
 3. custom-domain.org - Unknown custom domain.  Requires /CNAME and /owner.json.  Otherwise, as above.
 4. localhost:port/path/repo - Local development.  Usually path=org.  Requires /puzlet.json.  Should have empty /CNAME to avoid GET errors.
 5. deployment.com/path/repo - Deployment server.  Same as 4, but path likely not org.
+6. site.com - Some other site with embedded Puzlet content - no corresponding owner/repo.
 
 Example puzlet.json:
 {
@@ -87,9 +88,9 @@ loadScript = (url, cache=false, onLoad=(->), onError=(->)) ->
 # Ajax file loader
 loadFile = (file, callback) ->
   $.ajax
-      url: file + "?t=#{Date.now()}"  # No cache
-      error: -> callback null
-      success: (data) -> callback(data)
+    url: file + "?t=#{Date.now()}"  # No cache
+    error: -> callback null
+    success: (data) -> callback(data)
 
 # Check whether host is GitHub organization/owner:
 #   org.github.io or puzlet.org or other known hostname.
@@ -113,8 +114,8 @@ getGitHub = (callback) ->
   gh = gitHubIo.split "."
   path = pathname.split "/"
   
-  # Repo is always last part of URL path
-  gitHub.repo = path[-2..-2][0]
+  # Repo is always last part of URL path; but will be set to null later if no owner determined.
+  gitHub.repo = if path.length>1 then path[-2..-2][0] else null
   
   # Check if org.github.io.
   isGitHubIo = host.length is 3 and host[1] is gh[1] and host[2] is gh[2]
@@ -139,35 +140,35 @@ getGitHub = (callback) ->
         # Search for owner/org in config file.  TODO: try orgRoot as well.
         for org, p of config.orgs
           if pathname.indexOf(p) is 0
-              gitHub.owner = org
-              break 
+            gitHub.owner = org
+            break 
       gitHub.owner ?= if path.length>2 then path[-3..-3][0] else null  # Default owner from path (path/owner/repo/)
       callback(gitHub)
     
   # Check if another custom domain by inspecting CNAME file.
   $.ajax
+    
+    url: cnameFile
+    
+    error: ->
+      # No CNAME file => assume localhost/deployment
+      gitHub.isGitHubHosted = false
+      getLocalConfig()
+    
+    success: (data) ->
       
-      url: cnameFile
+      ghHosted = (data is hostname)
+      gitHub.isGitHubHosted = ghHosted  # Contents of CNAME must match host name.
       
-      error: ->
-        # No CNAME file => assume localhost/deployment
-        gitHub.isGitHubHosted = false
+      if ghHosted
+        # If (unknown) custom domain, get owner from owner.json.
+        # No way to determine owner otherwise.
+        loadFile ownerFile, (owner) ->
+          gitHub.owner = owner
+          callback(gitHub)
+      else
+        # CNAME host does not match => assume localhost/deployment.
         getLocalConfig()
-      
-      success: (data) ->
-        
-        ghHosted = (data is hostname)
-        gitHub.isGitHubHosted = ghHosted  # Contents of CNAME must match host name.
-        
-        if ghHosted
-          # If (unknown) custom domain, get owner from owner.json.
-          # No way to determine owner otherwise.
-          loadFile ownerFile, (owner) ->
-            gitHub.owner = owner
-            callback(gitHub)
-        else
-          # CNAME host does not match => assume localhost/deployment.
-          getLocalConfig()
 
 window.$blab = {}  # Exported interface.
 
@@ -177,9 +178,12 @@ loadScript jQuerySource, jQueryCache, ->
   
   getGitHub (gitHub) ->
     
+    # If owner cannot be determined, repo also cannot be determined.
+    gitHub.repo = null unless gitHub.owner
+    
     $blab.gitHub = gitHub
     ghHosted = gitHub.isGitHubHosted
-    console.log "Host: "+(if ghHosted then "GitHub" else "local/deployment")
+    console.log "Host: "+(if ghHosted then "GitHub" else (if gitHub.owner then "local/deployment" else "no known github repo"))
     
     if ghHosted
       loaderUrl = puzletOrg + loaderPath
@@ -189,3 +193,4 @@ loadScript jQuerySource, jQueryCache, ->
     
     console.log "Load Puzlet (#{loaderUrl})"
     loadScript(loaderUrl)
+
