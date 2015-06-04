@@ -2,6 +2,26 @@
 
 Puzlet Bootstrap
 
+Purpose of this bootstrap script:
+
+* Loads the Puzlet app from the right location.
+  It generally loads Puzlet from puzlet.org, but can load it from localhost if needed.
+  (e.g., if you are developing the Puzlet app locally.)
+
+* A blab's index.html can always use the same tag at bottom of <body>:
+  <script src="//puzlet.org/puzlet.js"></script>
+  That is, no need to change this tag if you are developing Puzlet app locally.
+
+* No need to include any other resource tags (<script>, <link>) in index.html.
+  All required resources are specified in blab's resources.coffee.
+
+* Determines the GitHub organization and repo (org/repo) for the current blab.
+
+* Creates window.$blab namespace, used for the Puzlet app and components.
+  Creates $blab.gitHub which holds information about the current blab's GitHub org/repo.
+
+* Other know Puzlet organizations with custom domain names (besides puzlet.org) can be registered here.
+
 Handles these Puzlet hosts:
 
 1. org.github.io - GitHub organization.  Everything loaded from GitHub (loader is //puzlet.org/puzlet/js/loader.js)
@@ -9,6 +29,16 @@ Handles these Puzlet hosts:
 3. custom-domain.org - Unknown custom domain.  Requires /CNAME and /owner.json.  Otherwise, as above.
 4. localhost:port/path/repo - Local development.  Usually path=org.  Requires /puzlet.json.  Should have empty /CNAME to avoid GET errors.
 5. deployment.com/path/repo - Deployment server.  Same as 4, but path likely not org.
+
+Example puzlet.json:
+{
+	"orgRoot": "/",
+	"orgs": {
+		"puzlet": "/puzlet",
+		"stemblab": "/stemblab",
+		"spacemath": "/spacemath"
+	}
+}
 
 puzlet.json tells Puzlet the local folder coresponding to a GitHub organization (e.g., for /org/repo/file.ext in resources.coffee).
 If the organization/folder does not exist in puzlet.json, Puzlet will use GitHub to get an organization's resources.
@@ -48,7 +78,6 @@ console.log "Puzlet bootstrap"
 # Script loader
 loadScript = (url, cache=false, onLoad=(->), onError=(->)) ->
   script = document.createElement "script"
-  #script.setAttribute "type", "text/javascript"
   script.setAttribute "src", url + (if cache then "" else "?t=#{Date.now()}")
   script.onload = onLoad
   script.onerror = onError
@@ -61,8 +90,8 @@ loadFile = (file, callback) ->
       error: -> callback null
       success: (data) -> callback(data)
 
-# Check whether host is GitHub organization/owner.
-# org.github.io or puzlet.org or other known hostname.
+# Check whether host is GitHub organization/owner:
+#   org.github.io or puzlet.org or other known hostname.
 # If that fails, see if CNAME contents matches hostname.
 # Determine owner/repo.
 getGitHub = (callback) ->
