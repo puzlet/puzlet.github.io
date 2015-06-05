@@ -25,6 +25,8 @@ Purpose of this bootstrap script:
 
 * Other known Puzlet organizations with custom domain names (besides puzlet.org) can be registered here.
 
+* Sites with no local org/repo structure (get all resources from github) can use attribute "puzlet-data" in script tag.
+
 Handles these Puzlet hosts:
 
 1. org.github.io - GitHub organization.  Everything loaded from GitHub (loader is //puzlet.org/puzlet/js/loader.js)
@@ -121,13 +123,23 @@ jQuery is loaded.
   };
 
   getGitHub = function(callback) {
-    var a, customDomains, getLocalConfig, gh, gitHub, host, hostname, isGitHubIo, path, pathname;
+    var a, attr, customDomains, getLocalConfig, gh, gitHub, host, hostname, isGitHubIo, path, pathname, pzAttr, pzScript;
     gitHub = {
       isGitHubHosted: false,
       localConfig: null,
       owner: null,
       repo: null
     };
+    pzAttr = "data-puzlet";
+    pzScript = $("script[" + pzAttr + "]");
+    if (pzScript.length) {
+      attr = pzScript.attr(pzAttr);
+      if (!attr) {
+        console.log("No local org/repo folder structure used");
+        callback(gitHub);
+        return;
+      }
+    }
     a = document.createElement("a");
     a.href = window.location.href;
     hostname = a.hostname;
