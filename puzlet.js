@@ -123,7 +123,7 @@ jQuery is loaded.
   };
 
   getGitHub = function(callback) {
-    var a, attr, customDomains, getLocalConfig, gh, gitHub, host, hostname, isGitHubIo, path, pathname, pzAttr, pzScript;
+    var a, customDomains, getLocalConfig, gh, gitHub, host, hostname, isGitHubIo, path, pathname, pzAttr, pzScript;
     gitHub = {
       isGitHubHosted: false,
       localConfig: null,
@@ -132,13 +132,10 @@ jQuery is loaded.
     };
     pzAttr = "data-puzlet";
     pzScript = $("script[" + pzAttr + "]");
-    if (pzScript.length) {
-      attr = pzScript.attr(pzAttr);
-      if (!attr) {
-        console.log("No local org/repo folder structure used");
-        callback(gitHub);
-        return;
-      }
+    if (!pzScript.length) {
+      console.log("No local org/repo folder structure used");
+      callback(gitHub);
+      return;
     }
     a = document.createElement("a");
     a.href = window.location.href;

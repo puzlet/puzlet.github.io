@@ -108,15 +108,15 @@ getGitHub = (callback) ->
     repo: null
     
   # Check puzlet script tag attributes.
-  # If empty data-puzlet, assume an external site with no local org/repo structure.
+  # If no data-puzlet attribute, assume an external site with no local org/repo structure.
   pzAttr = "data-puzlet"
   pzScript = $("script[#{pzAttr}]")
-  if pzScript.length
-    attr = pzScript.attr(pzAttr)
-    unless attr
-      console.log "No local org/repo folder structure used"
-      callback(gitHub)
-      return
+  unless pzScript.length
+    #attr = pzScript.attr(pzAttr)
+    #unless attr
+    console.log "No local org/repo folder structure used"
+    callback(gitHub)
+    return
   
   a = document.createElement "a"
   a.href = window.location.href
