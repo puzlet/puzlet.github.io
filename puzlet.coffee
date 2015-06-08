@@ -23,7 +23,7 @@ Purpose of this bootstrap script:
 
 * Other known Puzlet organizations with custom domain names (besides puzlet.org) can be registered here.
 
-* Sites with no local org/repo structure (get all resources from github) can use attribute "puzlet-data" in script tag.
+* Sites with local org/repo structure should use attribute "puzlet-data" in script tag.
 
 Handles these Puzlet hosts:
 
