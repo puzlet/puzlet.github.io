@@ -94,6 +94,14 @@ loadFile = (file, callback) ->
     error: -> callback null
     success: (data) -> callback(data)
 
+# jQuery loader; returns if jQuery already loaded.
+loadJQuery = (callback) ->
+  if jQuery?
+    callback()
+  else
+    jQueryCache = true
+    loadScript jQuerySource, jQueryCache, callback
+
 # Check whether host is GitHub organization/owner:
 #   org.github.io or puzlet.org or other known hostname.
 # If that fails, see if CNAME contents matches hostname.
@@ -185,9 +193,8 @@ getGitHub = (callback) ->
 
 window.$blab = {}  # Exported interface.
 
-# Sequence: load jQuery; fetch GitHub data; load puzlet.json (if not GitHub); load Puzlet.
-jQueryCache = true
-loadScript jQuerySource, jQueryCache, ->
+# Sequence: load jQuery (if not loaded); fetch GitHub data; load puzlet.json (if not GitHub); load Puzlet.
+loadJQuery ->
   
   getGitHub (gitHub) ->
     
@@ -206,4 +213,3 @@ loadScript jQuerySource, jQueryCache, ->
     
     console.log "Load Puzlet (#{loaderUrl})"
     loadScript(loaderUrl)
-
