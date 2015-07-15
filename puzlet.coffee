@@ -66,6 +66,7 @@ gitHubIo = "org.github.io"
 # This is faster than checking CNAME and owner.json files.
 knownGitHubOrgDomains = [
   {domain: "puzlet.org", org: "puzlet"}
+  {domain: "blabr.io", org: "puzlet"}
 ]
 
 cnameFile = "/CNAME"

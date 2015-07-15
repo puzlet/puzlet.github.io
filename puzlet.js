@@ -59,7 +59,7 @@ jQuery is loaded.
  */
 
 (function() {
-  var cnameFile, configFile, getGitHub, gitHubIo, jQueryCache, jQuerySource, knownGitHubOrgDomains, loadFile, loadScript, loaderPath, ownerFile, puzletOrg;
+  var cnameFile, configFile, getGitHub, gitHubIo, jQuerySource, knownGitHubOrgDomains, loadFile, loadJQuery, loadScript, loaderPath, ownerFile, puzletOrg;
 
   puzletOrg = "http://puzlet.org";
 
@@ -70,6 +70,9 @@ jQuery is loaded.
   knownGitHubOrgDomains = [
     {
       domain: "puzlet.org",
+      org: "puzlet"
+    }, {
+      domain: "blabr.io",
       org: "puzlet"
     }
   ];
@@ -120,6 +123,16 @@ jQuery is loaded.
         return callback(data);
       }
     });
+  };
+
+  loadJQuery = function(callback) {
+    var jQueryCache;
+    if (typeof jQuery !== "undefined" && jQuery !== null) {
+      return callback();
+    } else {
+      jQueryCache = true;
+      return loadScript(jQuerySource, jQueryCache, callback);
+    }
   };
 
   getGitHub = function(callback) {
@@ -205,9 +218,7 @@ jQuery is loaded.
 
   window.$blab = {};
 
-  jQueryCache = true;
-
-  loadScript(jQuerySource, jQueryCache, function() {
+  loadJQuery(function() {
     return getGitHub(function(gitHub) {
       var ghHosted, loaderUrl, localPuzlet, _ref, _ref1;
       if (!gitHub.owner) {
