@@ -115,7 +115,7 @@ jQuery is loaded.
 
   loadFile = function(file, callback) {
     return $.ajax({
-      url: file + ("?t=" + (Date.now())),
+      url: file,
       error: function() {
         return callback(null);
       },

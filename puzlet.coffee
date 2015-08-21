@@ -91,7 +91,7 @@ loadScript = (url, cache=false, onLoad=(->), onError=(->)) ->
 # Ajax file loader
 loadFile = (file, callback) ->
   $.ajax
-    url: file + "?t=#{Date.now()}"  # No cache
+    url: file #+ "?t=#{Date.now()}"  # No cache
     error: -> callback null
     success: (data) -> callback(data)
 
