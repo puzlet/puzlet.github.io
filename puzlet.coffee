@@ -213,4 +213,5 @@ loadJQuery ->
       loaderUrl = (localPuzlet ? puzletOrg) + loaderPath
     
     console.log "Load Puzlet (#{loaderUrl})"
-    loadScript(loaderUrl)
+    cache = true
+    loadScript(loaderUrl, cache)

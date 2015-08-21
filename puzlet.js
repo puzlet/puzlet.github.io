@@ -220,7 +220,7 @@ jQuery is loaded.
 
   loadJQuery(function() {
     return getGitHub(function(gitHub) {
-      var ghHosted, loaderUrl, localPuzlet, _ref, _ref1;
+      var cache, ghHosted, loaderUrl, localPuzlet, _ref, _ref1;
       if (!gitHub.owner) {
         gitHub.repo = null;
       }
@@ -234,7 +234,8 @@ jQuery is loaded.
         loaderUrl = (localPuzlet != null ? localPuzlet : puzletOrg) + loaderPath;
       }
       console.log("Load Puzlet (" + loaderUrl + ")");
-      return loadScript(loaderUrl);
+      cache = true;
+      return loadScript(loaderUrl, cache);
     });
   });
 
