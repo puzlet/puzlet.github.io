@@ -67,6 +67,7 @@ hr {
   float: left;
   width: 160px;
   height: 150px;
+	border: 1px solid #bbb;
 }
 
 .gist p {
