@@ -75,6 +75,13 @@ hr {
   width: 630px;
 }
 
+.gist ul {
+	margin-top: -5px;
+	float: right;
+	width: 580px;
+	line-height: 140%;
+}
+
 .footnote {
   font-size: 9pt;
   line-height: 120%;
